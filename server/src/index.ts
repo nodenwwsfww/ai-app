@@ -17,6 +17,12 @@ const cache = new LRUCache<string, string>({
   ttl: 1000 * 60 * 60 // 1 hour
 })
 
+// Also cache errors to prevent hammering the API
+const errorCache = new LRUCache<string, { error: string, retryAfter?: number }>({
+  max: 100,
+  ttl: 1000 * 60 // 1 minute
+})
+
 // Rate limiting
 const rateLimit = new Map<string, { count: number, timestamp: number }>()
 const RATE_LIMIT = { max: 30, window: 60000 } // 30 requests per minute
@@ -65,24 +71,67 @@ app.use('*', async (c, next) => {
 })
 
 // Helper to clean AI response
-function cleanAIResponse(text: string): string | null {
+function cleanAIResponse(text: string, input: string): string | null {
+  const cleaned = text.trim()
+  
+  // Empty response
+  if (!cleaned) {
+    console.debug(`[Filter] Empty response`)
+    return null
+  }
+
   // Remove any explanatory text or apologies
-  if (text.toLowerCase().includes('apologize') || 
-      text.toLowerCase().includes('sorry') ||
-      text.toLowerCase().includes('haven\'t provided') ||
-      text.toLowerCase().includes('cannot') ||
-      text.toLowerCase().includes('unable to')) {
+  if (cleaned.toLowerCase().includes('apologize') || 
+      cleaned.toLowerCase().includes('sorry') ||
+      cleaned.toLowerCase().includes('haven\'t provided') ||
+      cleaned.toLowerCase().includes('cannot') ||
+      cleaned.toLowerCase().includes('unable to') ||
+      cleaned.toLowerCase().includes('would you like') ||
+      cleaned.toLowerCase().includes('here\'s') ||
+      cleaned.toLowerCase().includes('suggestion')) {
+    console.debug(`[Filter] Contains explanation/apology: "${cleaned}"`)
     return null
   }
 
   // Remove any AI self-references
-  if (text.toLowerCase().includes('ai') ||
-      text.toLowerCase().includes('assistant') ||
-      text.toLowerCase().includes('model')) {
+  if (cleaned.toLowerCase().includes('ai') ||
+      cleaned.toLowerCase().includes('assistant') ||
+      cleaned.toLowerCase().includes('model') ||
+      cleaned.toLowerCase().includes('help')) {
+    console.debug(`[Filter] Contains AI self-reference: "${cleaned}"`)
     return null
   }
 
-  return text.trim()
+  // Remove any markdown or special formatting
+  if (cleaned.includes('`') || 
+      cleaned.includes('*') || 
+      cleaned.includes('#') ||
+      cleaned.includes('>')) {
+    console.debug(`[Filter] Contains markdown: "${cleaned}"`)
+    return null
+  }
+
+  // Handle partial words - if input ends with part of a word, completion should complete it
+  const inputWords = input.trim().split(/\s+/)
+  const lastInputWord = inputWords[inputWords.length - 1]
+  
+  if (lastInputWord && !lastInputWord.endsWith(',') && !lastInputWord.endsWith('.')) {
+    // If we're in the middle of a word, make sure the completion starts with the rest of that word
+    if (!cleaned.startsWith(' ') && !cleaned.startsWith(lastInputWord)) {
+      const completion = cleaned.split(/\s+/)[0]
+      if (!completion.startsWith(lastInputWord.slice(-1))) {
+        console.debug(`[Filter] Invalid word completion: input="${lastInputWord}", completion="${cleaned}"`)
+        return null
+      }
+    }
+  }
+
+  return cleaned
+}
+
+// Helper to normalize text for caching
+function getNormalizedKey(text: string, url: string): string {
+  return `${text.trim().toLowerCase()}:${url}`
 }
 
 // Main completion endpoint
@@ -90,18 +139,56 @@ app.post('/', zValidator('json', RequestSchema), async (c) => {
   const { text, url } = c.req.valid('json')
   
   try {
-    // Check cache
-    const cacheKey = `${text}:${url}`
-    const cached = cache.get(cacheKey)
+    // Check cache first with normalized key
+    const cacheKey = getNormalizedKey(text, url)
     
-    if (cached) {
+    // Check success cache
+    const cached = cache.get(cacheKey)
+    if (cached !== undefined) {
       console.debug(`[Cache] HIT: "${text}" → "${cached}"`)
       return c.json({ text: cached })
     }
 
+    // Check error cache
+    const cachedError = errorCache.get(cacheKey)
+    if (cachedError) {
+      console.debug(`[Cache] Error HIT: "${text}" → ${cachedError.error}`)
+      if (cachedError.retryAfter) {
+        c.header('Retry-After', cachedError.retryAfter.toString())
+      }
+      return c.json({ error: cachedError.error }, 429)
+    }
+
+    console.debug(`[Request] Text: "${text}", Last word: "${text.split(/\s+/).pop()}"`)
+
     // Get completion from OpenRouter
-    const systemPrompt = 'Complete the text naturally, matching the context and style. Only return the continuation. Never explain or apologize.'
-    console.debug(`[API] Request: "${text}" | Context: ${url} | System: ${systemPrompt}`)
+    const systemPrompt = `You are a real-time text autocomplete engine, like Gmail's Smart Compose. Your only job is to predict and complete the current text naturally.
+
+IMPORTANT RULES:
+- ONLY return the direct continuation of the text
+- NEVER explain, apologize, or add commentary
+- NEVER use markdown or formatting
+- NEVER add punctuation unless it's part of a common ending
+- If input ends with part of a word, complete that word first
+- If input ends with punctuation or space, predict next word(s)
+- Keep completions concise and relevant
+- Match the style and context of the input
+- If unsure, return empty string instead of guessing
+
+Example good responses:
+Input: "The quick brown" → Output: " fox jumps over"
+Input: "Dear Mr." → Output: " Smith"
+Input: "console.log" → Output: "('Hello, world!')"
+Input: "Hi," → Output: " how are you"
+Input: "He" → Output: "llo"
+Input: "Hel" → Output: "lo"
+
+Remember: You are an autocomplete engine, not a chat assistant. Just complete the text naturally.
+
+USER INPUT: ${text}
+ONLY RETURN THE COMPLETION, NO OTHER TEXT.`
+
+    console.debug(`[API] Request: "${text}" | Context: ${url} | System: Gemini Pro 2.5 Experimental`)
     
     const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
@@ -112,7 +199,7 @@ app.post('/', zValidator('json', RequestSchema), async (c) => {
         'X-Title': 'AI T9 Autocomplete'
       },
       body: JSON.stringify({
-        model: 'anthropic/claude-3-opus',
+        model: 'google/gemini-2.5-pro-exp-03-25:free',
         messages: [
           {
             role: 'system',
@@ -123,28 +210,52 @@ app.post('/', zValidator('json', RequestSchema), async (c) => {
             content: text
           }
         ],
-        temperature: 0.7,
+        temperature: 0.2,
         max_tokens: 50,
-        stop: ["\n", ".", "!", "?"]
+        stop: ["\n", ".", "!", "?", ";"],
+        top_p: 0.9,
+        frequency_penalty: 0.05
       })
     })
 
-    if (!response.ok) {
-      throw new Error(`OpenRouter API error: ${response.status}`)
-    }
-
     const data = await response.json()
-    const rawSuggestion = data.choices[0].message.content?.trim() || ''
-    const suggestion = cleanAIResponse(rawSuggestion)
+    console.debug(`[Raw] Response:`, JSON.stringify(data, null, 2))
 
-    if (suggestion) {
-      cache.set(cacheKey, suggestion)
-      console.debug(`[API] Response: "${text}" → "${suggestion}" (raw: "${rawSuggestion}")`)
-      return c.json({ text: suggestion })
-    } else {
-      console.debug(`[API] Invalid response filtered out: "${rawSuggestion}"`)
-      return c.json({ text: '' })
+    // Handle rate limiting and other API errors
+    if (!response.ok) {
+      const errorMsg = data.error?.message || `API error: ${response.status}`
+      const retryAfter = data.error?.metadata?.raw ? 
+        JSON.parse(data.error.metadata.raw)?.error?.details?.[2]?.retryDelay?.replace('s', '') : 
+        undefined
+
+      // Cache the error to prevent hammering
+      errorCache.set(cacheKey, { 
+        error: errorMsg, 
+        retryAfter: retryAfter ? parseInt(retryAfter) : undefined 
+      })
+
+      if (retryAfter) {
+        c.header('Retry-After', retryAfter)
+      }
+      
+      console.debug(`[API] Error cached: "${text}" → ${errorMsg} (retry: ${retryAfter}s)`)
+      return c.json({ error: errorMsg }, 429)
     }
+
+    const rawSuggestion = data.choices?.[0]?.message?.content?.trim() || ''
+    const suggestion = cleanAIResponse(rawSuggestion, text)
+
+    // Always cache the result, even if empty
+    const finalSuggestion = suggestion || ''
+    cache.set(cacheKey, finalSuggestion)
+    
+    if (suggestion) {
+      console.debug(`[API] Response cached: "${text}" → "${suggestion}"`)
+    } else {
+      console.debug(`[API] Empty response cached for: "${text}"`)
+    }
+
+    return c.json({ text: finalSuggestion })
 
   } catch (error) {
     console.error('[Error]', error instanceof Error ? error.message : 'Unknown error')
@@ -161,3 +272,4 @@ app.get('/health', (c) => {
 })
 
 export default app
+

@@ -32,11 +32,11 @@ export const config: ServerConfig = {
     windowMs: 60000 // 1 minute
   },
   model: {
-    defaultId: 'anthropic/claude-3-opus', // Default model
+    defaultId: 'google/gemini-2.5-pro-exp-03-25:free',
     maxOutputTokens: 50,
-    temperature: 0.7,
-    frequencyPenalty: 0.5,
-    presencePenalty: 0.6
+    temperature: 0.2,
+    frequencyPenalty: 0.05,
+    presencePenalty: 0.0
   }
 }
 

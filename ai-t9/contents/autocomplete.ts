@@ -10,13 +10,15 @@ const API_URL = "http://localhost:8080"
 class Autocomplete {
   private element: HTMLTextAreaElement | HTMLInputElement
   private overlay: HTMLTextAreaElement
-  private currentRequest: Promise<any> | null = null
   private lastInput = ""
   private minLength = 3
   private debounceTimeout: number | null = null
   private lastRequestTime = 0
-  private readonly DEBOUNCE_DELAY = 300 // ms
-  private readonly MIN_REQUEST_INTERVAL = 1000 // ms
+  private readonly DEBOUNCE_DELAY = 800 // Increased from 300ms to 800ms
+  private readonly MIN_REQUEST_INTERVAL = 2000 // Increased from 1000ms to 2000ms
+  private pendingRequests = new Set<string>()
+  private localCache = new Map<string, string>()
+  private readonly MIN_WORD_LENGTH = 2 // Only trigger after 2 chars of a new word
 
   constructor(element: HTMLTextAreaElement | HTMLInputElement) {
     this.element = element
@@ -60,9 +62,22 @@ class Autocomplete {
     const text = this.element.value
     const cursorPos = this.element.selectionStart || 0
     const currentLine = text.split("\n")[text.substring(0, cursorPos).split("\n").length - 1]
+    const words = currentLine.split(/\s+/)
+    const lastWord = words[words.length - 1] || ""
 
-    if (currentLine.length < this.minLength || currentLine === this.lastInput) {
+    // Basic validation
+    if (currentLine.length < this.minLength || lastWord.length < this.MIN_WORD_LENGTH) {
       this.hideOverlay()
+      return
+    }
+
+    // Check local cache first
+    const cached = this.localCache.get(currentLine)
+    if (cached !== undefined) {
+      console.debug(`[AI-T9] Local cache hit: "${currentLine}" → "${cached}"`)
+      if (cached) {
+        this.showCompletion(cached, cursorPos)
+      }
       return
     }
 
@@ -76,15 +91,31 @@ class Autocomplete {
       const now = Date.now()
       const timeSinceLastRequest = now - this.lastRequestTime
 
+      // Skip if same as last input
+      if (currentLine === this.lastInput) {
+        console.debug(`[AI-T9] Skipped: Same as last input "${currentLine}"`)
+        return
+      }
+
       // Throttle if requests are too frequent
       if (timeSinceLastRequest < this.MIN_REQUEST_INTERVAL) {
+        console.debug(`[AI-T9] Throttled: Too soon (${timeSinceLastRequest}ms < ${this.MIN_REQUEST_INTERVAL}ms)`)
+        return
+      }
+
+      // Skip if request is pending for this text
+      if (this.pendingRequests.has(currentLine)) {
+        console.debug(`[AI-T9] Skipped: Request pending for "${currentLine}"`)
         return
       }
 
       this.lastInput = currentLine
       this.lastRequestTime = now
+      this.pendingRequests.add(currentLine)
 
       try {
+        console.debug(`[AI-T9] Requesting completion for: "${currentLine}"`)
+        
         const response = await fetch(API_URL, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -94,19 +125,43 @@ class Autocomplete {
           })
         })
 
-        if (!response.ok) throw new Error(`HTTP ${response.status}`)
         const data = await response.json()
 
-        if (data.text && this.lastInput === currentLine) {
-          const completion = data.text.slice(currentLine.length)
-          if (completion) {
-            this.showCompletion(completion, cursorPos)
-            console.debug(`[AI-T9] Completion: "${currentLine}" → "${completion}"`)
+        // Handle rate limiting
+        if (response.status === 429) {
+          const retryAfter = response.headers.get('Retry-After')
+          if (retryAfter) {
+            const retryMs = parseInt(retryAfter) * 1000
+            console.debug(`[AI-T9] Rate limited. Retry after ${retryAfter}s`)
+            setTimeout(() => {
+              this.pendingRequests.delete(currentLine)
+            }, retryMs)
+            return
           }
+        }
+
+        // Remove from pending
+        this.pendingRequests.delete(currentLine)
+
+        if (!response.ok) {
+          throw new Error(data.error || `HTTP ${response.status}`)
+        }
+
+        // Cache the response locally
+        const completion = data.text || ''
+        this.localCache.set(currentLine, completion)
+
+        // Only show if it's still the current input
+        if (this.lastInput === currentLine && completion) {
+          this.showCompletion(completion, cursorPos)
+          console.debug(`[AI-T9] Showing completion: "${currentLine}" → "${completion}"`)
         }
       } catch (error) {
         console.error(`[AI-T9] Error:`, error instanceof Error ? error.message : 'Unknown error')
         this.hideOverlay()
+        this.pendingRequests.delete(currentLine)
+        // Cache errors as empty string to prevent retries
+        this.localCache.set(currentLine, '')
       }
     }, this.DEBOUNCE_DELAY)
   }
@@ -149,9 +204,12 @@ function initAutocomplete(element: HTMLElement) {
 }
 
 document.addEventListener("focusin", (e) => initAutocomplete(e.target as HTMLElement))
-
 document.querySelectorAll("textarea, input[type='text']").forEach(initAutocomplete)
 
+// Start the extension
+console.debug("[AI-T9] Extension initialized")
+
+// Debug logging
 function debug(message: string, data: any = {}, type: 'input' | 'success' | 'error' | 'warning' = 'input') {
   const event = new CustomEvent('ai-autocomplete-debug', {
     detail: {
@@ -263,14 +321,4 @@ function initializeInputHandlers() {
       handleInput(event)
     }
   }, true)
-}
-
-// Start the extension
-initializeInputHandlers()
-
-// Hot reload support
-if (import.meta.hot) {
-  import.meta.hot.accept(() => {
-    debug('Extension updated', {}, 'success')
-  })
 }
