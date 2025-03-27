@@ -1,9 +1,6 @@
 <div align="center">
   <h1>Autocomplete</h1>
   <h3>Get autocomplete anywhere on the web.</h3>
-  <a href="https://twitter.com/passionandfury">
-    <img alt="Twitter" src="https://img.shields.io/twitter/url.svg?label=%40passionandfury&style=social&url=https%3A%2F%2Ftwitter.com%2Falexdotjs" />
-  </a>
   <br />
   <br />
   <figure>
@@ -56,5 +53,3 @@ Ensure the repository is cloned and the `.env` file is populated with the enviro
 Congratulations! You have successfully installed the Autocomplete extension and hosted the backend.
 
 ## Support
-
-If you enjoy using Autocomplete and want to support me, feel free to [DM me on Twitter](https://twitter.com/passionandfury).

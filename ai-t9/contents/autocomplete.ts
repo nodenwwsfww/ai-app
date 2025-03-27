@@ -20,13 +20,15 @@ class Autocomplete {
   private minLength = 3
   private debounceTimeout: number | null = null
   private lastRequestTime = 0
-  private readonly DEBOUNCE_DELAY = 800 // Reduced from 1.5s for responsiveness but still effective
-  private readonly MIN_REQUEST_INTERVAL = 1500 // Reduced from 3s for better UX
-  private pendingRequests = new Set<string>()
+  private readonly DEBOUNCE_DELAY = 300 // Shorter delay for better responsiveness
+  private readonly MIN_REQUEST_INTERVAL = 800 // Reasonable throttle interval
   private localCache = new Map<string, string>()
   private readonly MIN_WORD_LENGTH = 2
-  private currentRequest: AbortController | null = null // Use AbortController for request cancellation
-  private requestQueue: string[] = [] // Queue to manage pending requests
+  private activeRequest: {
+    controller: AbortController;
+    text: string;
+    timestamp: number;
+  } | null = null
 
   constructor(element: HTMLTextAreaElement | HTMLInputElement) {
     this.element = element
@@ -79,7 +81,31 @@ class Autocomplete {
     this.element.addEventListener("blur", () => this.hideOverlay())
   }
 
-  private async onInput() {
+  private onInput() {
+    // Immediately cancel any existing request
+    if (this.activeRequest) {
+      // Don't abort if the request is more than 500ms old - let it complete
+      const now = Date.now()
+      const requestAge = now - this.activeRequest.timestamp
+      if (requestAge < 500) {
+        this.activeRequest.controller.abort()
+        this.activeRequest = null
+      }
+    }
+    
+    // Clear any pending debounce
+    if (this.debounceTimeout) {
+      window.clearTimeout(this.debounceTimeout)
+      this.debounceTimeout = null
+    }
+    
+    // Schedule the new request
+    this.debounceTimeout = window.setTimeout(() => {
+      this.processInput()
+    }, this.DEBOUNCE_DELAY)
+  }
+
+  private processInput() {
     const text = this.element.value
     const cursorPos = this.element.selectionStart || 0
     
@@ -99,7 +125,7 @@ class Autocomplete {
       return
     }
 
-    // Skip if same as last input
+    // Skip if same as last input - this is critical
     if (currentLine === this.lastInput) {
       console.debug(`[AI-T9] Skipped: Same as last input "${currentLine}"`)
       return
@@ -115,78 +141,55 @@ class Autocomplete {
       return
     }
 
-    // If there's an ongoing request for this text, don't start a new one
-    if (this.pendingRequests.has(currentLine)) {
-      console.debug(`[AI-T9] Already pending: "${currentLine}"`)
+    // If there's already a request for the exact same text, skip
+    if (this.activeRequest && this.activeRequest.text === currentLine) {
+      console.debug(`[AI-T9] Skipped: Already requesting "${currentLine}"`)
       return
     }
 
-    // Add to request queue
-    if (!this.requestQueue.includes(currentLine)) {
-      this.requestQueue.push(currentLine)
-    }
-
-    // Clear existing timeout
-    if (this.debounceTimeout) {
-      window.clearTimeout(this.debounceTimeout)
-    }
-
-    // Update last input immediately to prevent simultaneous identical requests
-    this.lastInput = currentLine
-
-    // Debounce the request
-    this.debounceTimeout = window.setTimeout(() => {
-      this.processNextRequest()
-    }, this.DEBOUNCE_DELAY)
-  }
-
-  private async processNextRequest() {
-    // No requests to process
-    if (this.requestQueue.length === 0) {
-      return
-    }
-
+    // Check rate limit before proceeding
     const now = Date.now()
     const timeSinceLastRequest = now - this.lastRequestTime
-
-    // Throttle if requests are too frequent
     if (timeSinceLastRequest < this.MIN_REQUEST_INTERVAL) {
       console.debug(`[AI-T9] Throttled: Too soon (${timeSinceLastRequest}ms < ${this.MIN_REQUEST_INTERVAL}ms)`)
-      setTimeout(() => this.processNextRequest(), this.MIN_REQUEST_INTERVAL - timeSinceLastRequest)
+      
+      // Schedule a retry after the rate limit period
+      setTimeout(() => {
+        // Only retry if the input hasn't changed
+        if (this.lastInput === currentLine) {
+          this.processInput()
+        }
+      }, this.MIN_REQUEST_INTERVAL - timeSinceLastRequest)
       return
     }
 
-    // Cancel any ongoing request
-    if (this.currentRequest) {
-      this.currentRequest.abort()
-      this.currentRequest = null
-    }
-
-    // Get the next request
-    const currentLine = this.requestQueue.shift()
-    if (!currentLine) return
-
-    // Skip if it's already in the cache now
-    if (this.localCache.has(currentLine)) {
-      this.processNextRequest() // Process next item in queue
-      return
-    }
-
+    // Update last input before making the request to prevent multiple identical requests
+    this.lastInput = currentLine
     this.lastRequestTime = now
-    this.pendingRequests.add(currentLine)
 
-    // Create a new AbortController for this request
+    // Set up the new request
+    this.makeRequest(currentLine, cursorPos)
+  }
+
+  private async makeRequest(text: string, cursorPos: number) {
+    // Create abort controller
     const controller = new AbortController()
-    this.currentRequest = controller
+    
+    // Store active request details
+    this.activeRequest = {
+      controller,
+      text,
+      timestamp: Date.now()
+    }
 
     try {
-      console.debug(`[AI-T9] Requesting completion for: "${currentLine}"`)
+      console.debug(`[AI-T9] Requesting completion for: "${text}"`)
       
       const response = await fetch(API_URL, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          text: currentLine,
+          text,
           url: window.location.href
         }),
         signal: controller.signal
@@ -196,24 +199,13 @@ class Autocomplete {
       if (response.status === 429) {
         const retryAfter = response.headers.get('Retry-After')
         if (retryAfter) {
-          const retryMs = parseInt(retryAfter) * 1000
           console.debug(`[AI-T9] Rate limited. Retry after ${retryAfter}s`)
-          setTimeout(() => {
-            this.pendingRequests.delete(currentLine)
-            // Put back in queue with lower priority
-            if (!this.localCache.has(currentLine)) {
-              this.requestQueue.push(currentLine)
-            }
-            this.processNextRequest()
-          }, retryMs)
+          this.localCache.set(text, '') // Cache as empty to prevent hammering
           return
         }
       }
 
       const data = await response.json() as ApiResponse
-
-      // Remove from pending
-      this.pendingRequests.delete(currentLine)
 
       if (!response.ok) {
         throw new Error(data.error || `HTTP ${response.status}`)
@@ -221,16 +213,16 @@ class Autocomplete {
 
       // Cache the response locally
       const completion = data.text || ''
-      this.localCache.set(currentLine, completion)
+      this.localCache.set(text, completion)
 
       // Only show if it's still the current input (our element's content might have changed)
-      const text = this.element.value
-      const cursorPos = this.element.selectionStart || 0
-      const currentLineNow = text.split("\n")[text.substring(0, cursorPos).split("\n").length - 1]
+      const currentText = this.element.value
+      const currentCursorPos = this.element.selectionStart || 0
+      const currentLineNow = currentText.split("\n")[currentText.substring(0, currentCursorPos).split("\n").length - 1]
       
-      if (currentLineNow === currentLine && completion) {
+      if (currentLineNow === text && completion) {
         this.showCompletion(completion, cursorPos)
-        console.debug(`[AI-T9] Showing completion: "${currentLine}" → "${completion}"`)
+        console.debug(`[AI-T9] Showing completion: "${text}" → "${completion}"`)
       }
     } catch (error) {
       // Don't log aborted requests as errors
@@ -238,16 +230,14 @@ class Autocomplete {
         console.error(`[AI-T9] Error:`, error instanceof Error ? error.message : 'Unknown error')
       }
       this.hideOverlay()
-      this.pendingRequests.delete(currentLine)
-      // Cache errors as empty string to prevent retries
-      this.localCache.set(currentLine, '')
-    } finally {
-      if (this.currentRequest === controller) {
-        this.currentRequest = null
-      }
       
-      // Process next request in queue after a small delay
-      setTimeout(() => this.processNextRequest(), 100)
+      // Cache errors as empty string to prevent retries
+      this.localCache.set(text, '')
+    } finally {
+      // Clear active request if it's still the same one
+      if (this.activeRequest && this.activeRequest.controller === controller) {
+        this.activeRequest = null
+      }
     }
   }
 
