@@ -1,213 +1,188 @@
 import cssText from "data-text:./style.css"
 import type { PlasmoCSConfig } from "plasmo"
+import { useEffect, useState } from "react"
 
-// Add TypeScript interface for our custom HTMLTextAreaElement with ghostText property
-interface CustomHTMLTextAreaElement extends HTMLTextAreaElement {
-  ghostText?: HTMLDivElement
+
+const DEFAULT_API_URL = "http://localhost:8080/complete"
+
+export const config: PlasmoCSConfig = {
+  matches: ["<all_urls>"],
+  all_frames: true
 }
 
-// Add TypeScript interface for element with ghostText property
-interface ElementWithGhostText extends Element {
-  ghostText?: HTMLDivElement
-}
-
-// CSS to be injected
 export const getStyle = () => {
   const style = document.createElement("style")
   style.textContent = cssText
   return style
 }
 
-// Default API URL if not set in settings
-const DEFAULT_API_URL = "http://localhost:8080/complete"
-
-// Configuration for the content script
-export const config: PlasmoCSConfig = {
-  matches: ["<all_urls>"],
-  all_frames: true
+const debounce = (func: Function, wait: number) => {
+  let timeout: NodeJS.Timeout
+  return function (...args: any[]) {
+    clearTimeout(timeout)
+    timeout = setTimeout(() => func(...args), wait)
+  }
 }
 
-// Main content script function that runs when the script is injected
-function PlasmoInject() {
-  let apiUrl = DEFAULT_API_URL
-
-  // Try to get API URL from storage
-  if (chrome.storage) {
-    chrome.storage.local.get("apiUrl", (result) => {
-      if (result.apiUrl) {
-        apiUrl = result.apiUrl
+function PlasmoOverlay() {
+  const [apiUrl, setApiUrl] = useState(DEFAULT_API_URL)
+  
+  useEffect(() => {
+    if (chrome?.storage?.local) {
+      chrome.storage.local.get("apiUrl", (result) => {
+        if (result.apiUrl) {
+          setApiUrl(result.apiUrl)
+        }
+      })
+    }
+    
+    const textareas = document.querySelectorAll("textarea")
+    const processed = new WeakSet()
+    const resizeObserver = new ResizeObserver(entries => {
+      for (const entry of entries) {
+        const textarea = entry.target as HTMLTextAreaElement
+        const ghostText = textarea.nextElementSibling as HTMLDivElement
+        if (ghostText?.classList.contains('ghost-text')) {
+          copyStyles(textarea, ghostText)
+        }
       }
     })
-  }
-
-  // ResizeObserver to adjust ghost text when textarea size changes
-  const resizeObserver = new ResizeObserver((entries) => {
-    for (let entry of entries) {
-      // Access ghostText from the textarea element
-      const target = entry.target as ElementWithGhostText
-      if (target.ghostText) {
-        copyStyles(entry.target, target.ghostText)
+    
+    textareas.forEach(textarea => {
+      if (!processed.has(textarea)) {
+        setupTextarea(textarea)
+        processed.add(textarea)
+        resizeObserver.observe(textarea)
       }
-    }
-  })
-
-  // Set up the event listener for textarea focus
-  document.addEventListener("focusin", handleFocusIn)
-
-  // Apply the logic to all textareas on page load
-  document.querySelectorAll("textarea").forEach((textarea) => {
-    handleFocusIn({ target: textarea })
-    resizeObserver.observe(textarea)
-  })
-
-  // Listen for button clicks and clear ghost text
-  document.querySelectorAll("button").forEach((button) => {
-    button.addEventListener("click", function () {
-      document.querySelectorAll("textarea").forEach((textarea) => {
-        const customTextarea = textarea as CustomHTMLTextAreaElement
-        if (customTextarea.ghostText) {
-          customTextarea.ghostText.textContent = ""
+    })
+    
+    const observer = new MutationObserver(mutations => {
+      mutations.forEach(mutation => {
+        if (mutation.type === 'childList') {
+          mutation.addedNodes.forEach(node => {
+            if (node.nodeName === 'TEXTAREA') {
+              const textarea = node as HTMLTextAreaElement
+              if (!processed.has(textarea)) {
+                setupTextarea(textarea)
+                processed.add(textarea)
+                resizeObserver.observe(textarea)
+              }
+            } else if (node.nodeType === Node.ELEMENT_NODE) {
+              (node as Element).querySelectorAll('textarea').forEach(textarea => {
+                if (!processed.has(textarea)) {
+                  setupTextarea(textarea)
+                  processed.add(textarea)
+                  resizeObserver.observe(textarea)
+                }
+              })
+            }
+          })
         }
       })
     })
-  })
-
-  function handleFocusIn(event) {
-    const target = event.target as CustomHTMLTextAreaElement
     
-    if (target.dataset.inputListenerAdded) {
-      return
+    observer.observe(document.body, { childList: true, subtree: true })
+    
+    document.addEventListener('click', e => {
+      if ((e.target as Element).tagName === 'BUTTON') {
+        document.querySelectorAll('.ghost-text').forEach(ghostText => {
+          ghostText.textContent = ''
+        })
+      }
+    })
+    
+    return () => {
+      observer.disconnect()
+      resizeObserver.disconnect()
     }
-
-    if (target.tagName === "TEXTAREA") {
-      const ghostText = document.createElement("div")
-
-      ghostText.style.zIndex = "100"
-
-      target.parentNode.insertBefore(ghostText, target.nextSibling)
-
-      copyStyles(target, ghostText)
-
-      // Store ghostText as a property of the textarea
-      target.ghostText = ghostText
-
-      const debouncedInputHandler = debounce(async function (e) {
-        const inputTarget = e.target as CustomHTMLTextAreaElement
-        if (inputTarget.value.length === 0) {
-          ghostText.textContent = ""
+  }, [])
+  
+  const setupTextarea = (textarea: HTMLTextAreaElement) => {
+    const ghostText = document.createElement('div')
+    ghostText.classList.add('ghost-text')
+    
+    if (textarea.parentNode) {
+      textarea.parentNode.insertBefore(ghostText, textarea.nextSibling)
+      copyStyles(textarea, ghostText)
+      
+      const debouncedGetSuggestion = debounce(async (value: string) => {
+        if (value.length === 0) {
+          ghostText.textContent = ''
           return
         }
-        const suggestion = await getSuggestion(inputTarget.value)
-        ghostText.textContent = inputTarget.value + `${suggestion}`
+        
+        try {
+          const response = await fetch(apiUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              text: value,
+              url: window.location.href
+            })
+          })
+          
+          const { text } = await response.json()
+          ghostText.textContent = value + text
+        } catch (error) {
+          console.error(error)
+          ghostText.textContent = value
+        }
       }, 500)
-
-      target.addEventListener("input", function (e) {
-        const inputTarget = e.target as CustomHTMLTextAreaElement
-        if (inputTarget.value.length === 0) {
-          ghostText.textContent = ""
+      
+      textarea.addEventListener('input', () => {
+        const value = textarea.value
+        if (value.length === 0) {
+          ghostText.textContent = ''
         } else {
-          ghostText.textContent = inputTarget.value
-          debouncedInputHandler(e)
+          ghostText.textContent = value
+          debouncedGetSuggestion(value)
         }
       })
-
-      target.addEventListener("keydown", function (e) {
-        const keydownTarget = e.target as CustomHTMLTextAreaElement
-        if (e.key === "Tab") {
+      
+      textarea.addEventListener('keydown', e => {
+        if (e.key === 'Tab') {
           e.preventDefault()
-          keydownTarget.value = ghostText.textContent || ""
-        } else if (e.key === "Enter") {
-          ghostText.textContent = ""
+          textarea.value = ghostText.textContent || ''
+        } else if (e.key === 'Enter') {
+          ghostText.textContent = ''
         }
       })
     }
-
-    target.dataset.inputListenerAdded = "true"
   }
-
-  async function getSuggestion(inputValue) {
-    try {
-      const response = await fetch(apiUrl, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          text: inputValue,
-          url: window.location.href
-        })
-      })
-
-      const { text } = await response.json()
-      return text
-    } catch (error) {
-      console.error(error)
-      return ""
-    }
-  }
-
-  function copyStyles(source, target) {
-    // get the parent of the source
-    const parent = source.parentNode
+  
+  const copyStyles = (source: HTMLElement, target: HTMLElement) => {
+    const parent = source.parentNode as HTMLElement
+    parent.style.position = 'relative'
     
-    // apply position relative to the parent
-    parent.style.position = "relative"
-
     const computedStyle = window.getComputedStyle(source)
-
-    for (const key of computedStyle) {
-      if (
-        [
-          "font-size",
-          "font-family",
-          "text-align",
-          "padding-bottom",
-          "padding-top",
-          "padding-left",
-          "padding-right",
-          "border-bottom-width",
-          "border-top-width",
-          "border-left-width",
-          "border-right-width",
-          "box-sizing",
-          "line-height",
-          "width",
-          "height"
-        ].includes(key)
-      ) {
-        target.style[key] = computedStyle[key]
-      }
-    }
-    target.style.position = "absolute"
-    target.style.top = "0"
-    target.style.left = "0"
-    target.style.right = "0"
-    target.style.bottom = "0"
-    target.style.pointerEvents = "none"
-    target.style.zIndex = "1"
-    target.style.color = "rgba(204, 204, 204, 0.7)"
-    target.style.background = "none"
-    target.style.overflow = "hidden"
-    target.style.whiteSpace = "pre-wrap"
-    target.style.wordWrap = "break-word"
-    target.style.borderColor = "transparent"
-    target.style.borderStyle = "solid"
+    const stylesToCopy = [
+      'font-size', 'font-family', 'text-align',
+      'padding-bottom', 'padding-top', 'padding-left', 'padding-right',
+      'border-bottom-width', 'border-top-width', 'border-left-width', 'border-right-width',
+      'box-sizing', 'line-height', 'width', 'height'
+    ]
+    
+    stylesToCopy.forEach(style => {
+      target.style[style as any] = computedStyle.getPropertyValue(style)
+    })
+    
+    target.style.position = 'absolute'
+    target.style.top = '0'
+    target.style.left = '0'
+    target.style.right = '0'
+    target.style.bottom = '0'
+    target.style.pointerEvents = 'none'
+    target.style.zIndex = '1'
+    target.style.color = 'rgba(204, 204, 204, 0.7)'
+    target.style.background = 'none'
+    target.style.overflow = 'hidden'
+    target.style.whiteSpace = 'pre-wrap'
+    target.style.wordWrap = 'break-word'
+    target.style.borderColor = 'transparent'
+    target.style.borderStyle = 'solid'
   }
-
-  function debounce(func, wait) {
-    let timeout
-    return function (...args) {
-      const context = this
-      clearTimeout(timeout)
-      timeout = setTimeout(() => func.apply(context, args), wait)
-    }
-  }
+  
+  return null
 }
 
-// This invokes our main function when the content script is injected
-PlasmoInject()
-
-// Export an empty component (Plasmo expects a React component)
-export default function PlasmoOverlay() {
-  return null
-} 
+export default PlasmoOverlay 
