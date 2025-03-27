@@ -38,17 +38,21 @@ const enhancedLogger: MiddlewareHandler = async (c, next) => {
   const endTime = Date.now();
   console.log(`Response time: ${endTime - startTime}ms`);
   
-  // Try to log response body if it's JSON
+  // Log response body based on content type
   try {
-    if (c.res.headers.get("content-type")?.includes("application/json")) {
-      const resClone = c.res.clone();
+    const contentType = c.res.headers.get("content-type");
+    const resClone = c.res.clone();
+    
+    if (contentType?.includes("application/json")) {
       const resBody = await resClone.json();
       console.log("Response body:", JSON.stringify(resBody, null, 2));
     } else {
-      console.log("Response body: [Not JSON]");
+      // Handle text responses
+      const textBody = await resClone.text();
+      console.log("Response body:", textBody || "[Empty response]");
     }
   } catch (e) {
-    console.log("Response body: [Failed to parse]");
+    console.log("Response body: [Failed to read]");
   }
 };
 

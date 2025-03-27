@@ -1,20 +1,4 @@
-import { useState, useEffect } from "react"
-
 function IndexPopup() {
-  const [apiUrl, setApiUrl] = useState("http://localhost:8080")
-
-  const saveSettings = () => {
-    chrome.storage.local.set({ apiUrl })
-  }
-
-  // Load settings when popup opens
-  useEffect(() => {
-    chrome.storage.local.get("apiUrl", (data) => {
-      if (data.apiUrl) {
-        setApiUrl(data.apiUrl)
-      }
-    })
-  }, [])
 
   return (
     <div
@@ -32,14 +16,11 @@ function IndexPopup() {
         <input 
           id="api-url"
           type="text"
-          value={apiUrl}
-          onChange={(e) => setApiUrl(e.target.value)}
           style={{ padding: 6, width: "100%" }}
         />
       </div>
       
       <button 
-        onClick={saveSettings}
         style={{
           marginTop: 8,
           padding: "6px 12px",
