@@ -1,31 +1,43 @@
-import express from "express";
-
-import cors from "cors";
+import { Hono } from "hono";
+import { cors } from "hono/cors";
+import { logger } from "hono/logger";
+import { serve } from "@hono/node-server";
 import { getOpenAIChatCompletion } from "./models/openai";
 
-const app = express();
+type AutocompleteRequest = {
+  text: string;
+  url: string;
+};
+
+const app = new Hono();
 const port = Number(process.env.PORT) || 3000;
 
-app.use(cors());
-app.use(express.json());
+// Middlewares
+app.use("*", logger());
+app.use("*", cors());
 
-app.post("/", async (req, res) => {
+// Routes
+app.get("/", (c) => {
+  return c.json({ message: "CORS enabled!" });
+});
+
+app.post("/", async (c) => {
   try {
-    const { text, url } = req.body;
+    const { text, url } = await c.req.json<AutocompleteRequest>();
     const completion = await getOpenAIChatCompletion(text, url);
-    res.json({ text: completion.choices[0].message.content });
+    return c.json({ text: completion.choices[0].message.content });
   } catch (error) {
     console.error(error);
-    res
-      .status(500)
-      .json({ error: "An error occurred while processing the request." });
+    return c.json(
+      { error: "An error occurred while processing the request." },
+      500
+    );
   }
 });
 
-app.get("/", (req, res) => {
-  res.json({ message: "CORS enabled!" });
-});
-
-app.listen(port, "0.0.0.0", function () {
-  console.log(`Server is running!`);
+// Start server
+console.log(`Server is running on port ${port}!`);
+serve({
+  fetch: app.fetch,
+  port
 });
