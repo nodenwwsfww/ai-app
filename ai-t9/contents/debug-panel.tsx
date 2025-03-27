@@ -1,67 +1,71 @@
 import React, { useState, useEffect, useRef } from "react"
 import type { PlasmoCSConfig } from "plasmo"
 
-// Debug panel styles
-const panelStyles: Record<string, React.CSSProperties> = {
+const panelStyles = {
   container: {
     position: "fixed",
     bottom: "20px",
     right: "20px",
-    width: "400px", // Increased width for better context display
-    maxHeight: "500px", // Increased height
-    backgroundColor: "#1a1a1a",
-    color: "#fff",
+    width: "400px",
+    maxHeight: "500px",
+    backgroundColor: "#1e1e1e",
+    color: "#e0e0e0",
     borderRadius: "8px",
-    boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
+    boxShadow: "0 4px 12px rgba(0,0,0,0.2)",
     zIndex: 999999,
-    fontFamily: "monospace",
+    fontFamily: "ui-monospace, monospace",
     fontSize: "12px",
-    overflow: "hidden",
+    overflow: "hidden"
   },
   header: {
-    padding: "8px 12px",
-    backgroundColor: "#2196F3",
+    padding: "10px 16px",
+    backgroundColor: "#2d2d2d",
     display: "flex",
     justifyContent: "space-between",
     alignItems: "center",
+    color: "#fff",
+    borderBottom: "1px solid #3d3d3d"
   },
   content: {
-    padding: "8px",
+    padding: "12px",
     maxHeight: "450px",
-    overflowY: "auto",
+    overflowY: "auto"
   },
   event: {
-    marginBottom: "12px",
-    padding: "8px",
-    borderRadius: "4px",
+    marginBottom: "8px",
+    padding: "10px",
+    borderRadius: "6px",
     backgroundColor: "#2a2a2a",
+    border: "1px solid #3d3d3d"
   },
   context: {
-    marginTop: "4px",
-    padding: "4px 8px",
-    backgroundColor: "#3a3a3a",
+    marginTop: "8px",
+    padding: "8px",
+    backgroundColor: "#333",
     borderRadius: "4px",
-    fontSize: "11px",
+    fontSize: "11px"
   },
   contextItem: {
     display: "flex",
     justifyContent: "space-between",
-    marginBottom: "2px",
+    marginBottom: "4px",
+    color: "#e0e0e0"
   },
-  input: { backgroundColor: "#2196F3" },
-  success: { backgroundColor: "#4CAF50" },
-  error: { backgroundColor: "#f44336" },
-  warning: { backgroundColor: "#ff9800" },
+  input: { borderColor: "#2196F3" },
+  success: { borderColor: "#4CAF50" },
+  error: { borderColor: "#f44336" },
+  warning: { borderColor: "#ff9800" },
   timestamp: {
     fontSize: "10px",
     opacity: 0.7,
+    marginBottom: "4px"
   },
   toggleButton: {
     position: "fixed",
     bottom: "20px",
     right: "20px",
-    backgroundColor: "#2196F3",
-    color: "white",
+    backgroundColor: "#2d2d2d",
+    color: "#fff",
     border: "none",
     borderRadius: "50%",
     width: "40px",
@@ -72,20 +76,27 @@ const panelStyles: Record<string, React.CSSProperties> = {
     alignItems: "center",
     justifyContent: "center",
     fontSize: "20px",
+    boxShadow: "0 2px 8px rgba(0,0,0,0.2)",
+    transition: "transform 0.2s",
+    '&:hover': {
+      transform: "scale(1.05)"
+    }
   },
-  clearButton: {
+  button: {
     background: "none",
     border: "none",
-    color: "white",
+    color: "#fff",
     cursor: "pointer",
     padding: "4px 8px",
     fontSize: "11px",
-    opacity: 0.7,
-    transition: "opacity 0.2s"
+    borderRadius: "4px",
+    transition: "background-color 0.2s",
+    '&:hover': {
+      backgroundColor: "rgba(255,255,255,0.1)"
+    }
   }
 }
 
-// Event type definition
 interface DebugEvent {
   type: "input" | "success" | "error" | "warning"
   message: string
@@ -110,41 +121,31 @@ export const config: PlasmoCSConfig = {
   matches: ["<all_urls>"]
 }
 
-// Debug Panel Component
 const DebugPanel = () => {
   const [isVisible, setIsVisible] = useState(false)
   const [events, setEvents] = useState<DebugEvent[]>([])
   const contentRef = useRef<HTMLDivElement>(null)
-  const [hoveredButton, setHoveredButton] = useState<string | null>(null)
 
-  // Listen for debug events
   useEffect(() => {
     const handleDebugEvent = (event: CustomEvent<DebugEvent>) => {
-      setEvents(prev => [...prev.slice(-100), event.detail]) // Keep last 100 events
-      
-      // Auto-scroll to bottom
-      if (contentRef.current) {
-        contentRef.current.scrollTop = contentRef.current.scrollHeight
-      }
+      setEvents(prev => [...prev.slice(-100), event.detail])
+      requestAnimationFrame(() => {
+        if (contentRef.current) {
+          contentRef.current.scrollTop = contentRef.current.scrollHeight
+        }
+      })
     }
 
-    // Register event listener
     window.addEventListener("ai-autocomplete-debug" as any, handleDebugEvent)
-
-    return () => {
-      window.removeEventListener("ai-autocomplete-debug" as any, handleDebugEvent)
-    }
+    return () => window.removeEventListener("ai-autocomplete-debug" as any, handleDebugEvent)
   }, [])
-
-  const clearEvents = () => {
-    setEvents([])
-  }
 
   if (!isVisible) {
     return (
       <button 
         style={panelStyles.toggleButton}
         onClick={() => setIsVisible(true)}
+        title="Open Debug Panel"
       >
         🐛
       </button>
@@ -154,33 +155,25 @@ const DebugPanel = () => {
   return (
     <div style={panelStyles.container}>
       <div style={panelStyles.header}>
-        <span>AI Autocomplete Debug</span>
+        <span>Debug Panel</span>
         <div style={{ display: 'flex', gap: '8px' }}>
           <button 
-            onClick={clearEvents}
-            onMouseEnter={() => setHoveredButton('clear')}
-            onMouseLeave={() => setHoveredButton(null)}
-            style={{
-              ...panelStyles.clearButton,
-              opacity: hoveredButton === 'clear' ? 1 : 0.7
-            }}
+            onClick={() => setEvents([])}
+            style={panelStyles.button}
+            title="Clear all events"
           >
             Clear
           </button>
           <button 
             onClick={() => setIsVisible(false)}
-            onMouseEnter={() => setHoveredButton('close')}
-            onMouseLeave={() => setHoveredButton(null)}
-            style={{
-              ...panelStyles.clearButton,
-              marginLeft: '8px',
-              opacity: hoveredButton === 'close' ? 1 : 0.7
-            }}
+            style={panelStyles.button}
+            title="Close panel"
           >
             ✕
           </button>
         </div>
       </div>
+
       <div style={panelStyles.content} ref={contentRef}>
         {events.map((event, index) => (
           <div 
@@ -191,31 +184,30 @@ const DebugPanel = () => {
             }}
           >
             <div style={panelStyles.timestamp}>{event.timestamp}</div>
-            <div style={{ fontWeight: 'bold' }}>{event.message}</div>
+            <div style={{ fontWeight: 500 }}>{event.message}</div>
             
-            {/* Context information */}
             {event.data?.context && (
               <div style={panelStyles.context}>
-                <div style={{ marginBottom: '4px', opacity: 0.7 }}>Context:</div>
-                {Object.entries(event.data.context).map(([key, value]) => (
+                {Object.entries(event.data.context).map(([key, value]) => 
                   value && (
                     <div key={key} style={panelStyles.contextItem}>
                       <span style={{ opacity: 0.7 }}>{key}:</span>
                       <span>{value.toString()}</span>
                     </div>
                   )
-                ))}
+                )}
               </div>
             )}
             
-            {/* Other event data */}
             {event.data && Object.entries(event.data)
               .filter(([key]) => key !== 'context')
               .map(([key, value]) => (
-                <div key={key} style={{ marginTop: '4px', fontSize: '11px' }}>
+                <div key={key} style={{ marginTop: '8px', fontSize: '11px' }}>
                   <span style={{ opacity: 0.7 }}>{key}: </span>
                   {typeof value === 'object' 
-                    ? <pre style={{ margin: '4px 0 0' }}>{JSON.stringify(value, null, 2)}</pre>
+                    ? <pre style={{ margin: '4px 0 0', overflow: 'auto' }}>
+                        {JSON.stringify(value, null, 2)}
+                      </pre>
                     : <span>{value.toString()}</span>
                   }
                 </div>
@@ -228,4 +220,4 @@ const DebugPanel = () => {
   )
 }
 
-export default DebugPanel 
+export default DebugPanel
