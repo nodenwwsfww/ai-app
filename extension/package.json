@@ -25,7 +25,12 @@
   },
   "manifest": {
     "host_permissions": [
-      "https://*/*"
+      "https://*/*",
+      "http://localhost:8080/"
+    ],
+    "permissions": [
+      "storage",
+      "activeTab"
     ]
   },
   "trustedDependencies": [

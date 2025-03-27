@@ -1,32 +1,67 @@
-This is a [Plasmo extension](https://docs.plasmo.com/) project bootstrapped with [`plasmo init`](https://www.npmjs.com/package/plasmo).
+# AI Autocomplete Browser Extension
 
-## Getting Started
+A browser extension that provides AI-powered text completion suggestions as you type in any textarea across the web.
 
-First, run the development server:
+## Features
+
+- Automatically provides text suggestions in any textarea
+- Ghost text preview of the suggestion
+- Press Tab to accept the suggestion
+- Works across all websites
+- Configurable API URL through the extension popup
+- Built with Plasmo Framework for cross-browser compatibility
+
+## Development
+
+This extension is built with [Plasmo Framework](https://www.plasmo.com/), a powerful tool for building browser extensions.
+
+### Prerequisites
+
+- Node.js 14+
+- npm or bun
+
+### Installation
+
+1. Clone this repository
+2. Install dependencies:
+   ```bash
+   cd extension
+   npm install
+   # or
+   bun install
+   ```
+
+3. Start the development server:
+   ```bash
+   npm run dev
+   # or
+   bun run dev
+   ```
+
+4. Load the extension in your browser:
+   - Chrome: Go to `chrome://extensions/`, enable "Developer mode", click "Load unpacked", and select the `extension/build/chrome-mv3-dev` directory
+   - Firefox: Go to `about:debugging#/runtime/this-firefox`, click "Load Temporary Add-on...", and select any file in the `extension/build/firefox-mv2-dev` directory
+
+### Building for Production
 
 ```bash
-pnpm dev
-# or
-npm run dev
-```
-
-Open your browser and load the appropriate development build. For example, if you are developing for the chrome browser, using manifest v3, use: `build/chrome-mv3-dev`.
-
-You can start editing the popup by modifying `popup.tsx`. It should auto-update as you make changes. To add an options page, simply add a `options.tsx` file to the root of the project, with a react component default exported. Likewise to add a content page, add a `content.ts` file to the root of the project, importing some module and do some logic, then reload the extension on your browser.
-
-For further guidance, [visit our Documentation](https://docs.plasmo.com/)
-
-## Making production build
-
-Run the following:
-
-```bash
-pnpm build
-# or
 npm run build
+# or
+bun run build
 ```
 
-This should create a production bundle for your extension, ready to be zipped and published to the stores.
+The built extension will be in the `extension/build` directory.
+
+## Server Setup
+
+The extension requires a backend server to provide the AI completions. By default, it connects to `http://localhost:8080`.
+
+1. Navigate to the `server` directory
+2. Follow the setup instructions in the server's README
+
+## Configuration
+
+You can configure the API URL for completions through the extension popup.
 
 ## Submit to the webstores
 
