@@ -1,16 +1,35 @@
 {
-  "name": "extension",
-  "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
-  "devDependencies": {
-    "tailwindcss": "^3.4.3"
-  },
+  "name": "ai-t9",
+  "displayName": "AI T9",
+  "version": "0.0.1",
+  "description": "AI autocompete for everything",
+  "author": "qweered & nodenwwsfww",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "style": "npx tailwindcss -i ./src/style.css -o ./src/output.css --watch"
+    "dev": "plasmo dev",
+    "build": "plasmo build",
+    "package": "plasmo package"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC"
+  "dependencies": {
+    "plasmo": "0.90.3",
+    "react": "18.2.0",
+    "react-dom": "18.2.0"
+  },
+  "devDependencies": {
+    "@ianvs/prettier-plugin-sort-imports": "4.1.1",
+    "@types/chrome": "0.0.258",
+    "@types/node": "20.11.5",
+    "@types/react": "18.2.48",
+    "@types/react-dom": "18.2.18",
+    "prettier": "3.2.4",
+    "typescript": "5.3.3"
+  },
+  "manifest": {
+    "host_permissions": [
+      "https://*/*"
+    ]
+  },
+  "trustedDependencies": [
+    "@parcel/watcher",
+    "@swc/core"
+  ]
 }
