@@ -1,7 +1,6 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { logger } from "hono/logger";
-import { serve } from "@hono/node-server";
 import { getOpenAIChatCompletion } from "./models/openai";
 
 type AutocompleteRequest = {
@@ -37,7 +36,7 @@ app.post("/", async (c) => {
 
 // Start server
 console.log(`Server is running on port ${port}!`);
-serve({
+export default {
+  port,
   fetch: app.fetch,
-  port
-});
+};

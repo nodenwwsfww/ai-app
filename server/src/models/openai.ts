@@ -1,8 +1,7 @@
 import OpenAI from "openai";
 
 const openai = new OpenAI({
-  organization: process.env.OPENAI_ORG_ID,
-  project: process.env.OPENAI_PROJECT_ID,
+  apiKey: process.env.OPENAI_API_KEY,
 });
 
 export async function getOpenAIChatCompletion(
