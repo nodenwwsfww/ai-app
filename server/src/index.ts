@@ -23,6 +23,9 @@ const errorCache = new LRUCache<string, { error: string, retryAfter?: number }>(
   ttl: 1000 * 60 // 1 minute
 })
 
+// Track in-flight requests to prevent duplicates
+const inFlightRequests = new Map<string, Promise<any>>()
+
 // Rate limiting
 const rateLimit = new Map<string, { count: number, timestamp: number }>()
 const RATE_LIMIT = { max: 30, window: 60000 } // 30 requests per minute
@@ -159,10 +162,21 @@ app.post('/', zValidator('json', RequestSchema), async (c) => {
       return c.json({ error: cachedError.error }, 429)
     }
 
+    // Check if there's an identical in-flight request
+    const existingRequest = inFlightRequests.get(cacheKey)
+    if (existingRequest) {
+      console.debug(`[Request] Duplicate detected for: "${text}", using existing in-flight request`)
+      const result = await existingRequest
+      return c.json(result)
+    }
+
     console.debug(`[Request] Text: "${text}", Last word: "${text.split(/\s+/).pop()}"`)
 
-    // Get completion from OpenRouter
-    const systemPrompt = `You are a real-time text autocomplete engine, like Gmail's Smart Compose. Your only job is to predict and complete the current text naturally.
+    // Create a promise for this request and track it
+    const requestPromise = (async () => {
+      try {
+        // Get completion from OpenRouter
+        const systemPrompt = `You are a real-time text autocomplete engine, like Gmail's Smart Compose. Your only job is to predict and complete the current text naturally.
 
 IMPORTANT RULES:
 - ONLY return the direct continuation of the text
@@ -188,75 +202,89 @@ Remember: You are an autocomplete engine, not a chat assistant. Just complete th
 USER INPUT: ${text}
 ONLY RETURN THE COMPLETION, NO OTHER TEXT.`
 
-    console.debug(`[API] Request: "${text}" | Context: ${url} | System: Gemini Pro 2.5 Experimental`)
-    
-    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}`,
-        'HTTP-Referer': url,
-        'X-Title': 'AI T9 Autocomplete'
-      },
-      body: JSON.stringify({
-        model: 'google/gemini-2.5-pro-exp-03-25:free',
-        messages: [
-          {
-            role: 'system',
-            content: systemPrompt
+        console.debug(`[API] Request: "${text}" | Context: ${url} | System: Gemini Pro 2.5 Experimental`)
+        
+        const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}`,
+            'HTTP-Referer': url,
+            'X-Title': 'AI T9 Autocomplete'
           },
-          {
-            role: 'user',
-            content: text
-          }
-        ],
-        temperature: 0.2,
-        max_tokens: 50,
-        stop: ["\n", ".", "!", "?", ";"],
-        top_p: 0.9,
-        frequency_penalty: 0.05
-      })
-    })
+          body: JSON.stringify({
+            model: 'google/gemini-2.5-pro-exp-03-25:free',
+            messages: [
+              {
+                role: 'system',
+                content: systemPrompt
+              },
+              {
+                role: 'user',
+                content: text
+              }
+            ],
+            temperature: 0.2,
+            max_tokens: 50,
+            stop: ["\n", ".", "!", "?", ";"],
+            top_p: 0.9
+          })
+        })
 
-    const data = await response.json()
-    console.debug(`[Raw] Response:`, JSON.stringify(data, null, 2))
+        const data = await response.json()
+        console.debug(`[Raw] Response:`, JSON.stringify(data, null, 2))
 
-    // Handle rate limiting and other API errors
-    if (!response.ok) {
-      const errorMsg = data.error?.message || `API error: ${response.status}`
-      const retryAfter = data.error?.metadata?.raw ? 
-        JSON.parse(data.error.metadata.raw)?.error?.details?.[2]?.retryDelay?.replace('s', '') : 
-        undefined
+        // Handle rate limiting and other API errors
+        if (!response.ok) {
+          const errorMsg = data.error?.message || `API error: ${response.status}`
+          const retryAfter = data.error?.metadata?.raw ? 
+            JSON.parse(data.error.metadata.raw)?.error?.details?.[2]?.retryDelay?.replace('s', '') : 
+            undefined
 
-      // Cache the error to prevent hammering
-      errorCache.set(cacheKey, { 
-        error: errorMsg, 
-        retryAfter: retryAfter ? parseInt(retryAfter) : undefined 
-      })
+          // Cache the error to prevent hammering
+          errorCache.set(cacheKey, { 
+            error: errorMsg, 
+            retryAfter: retryAfter ? parseInt(retryAfter) : undefined 
+          })
 
-      if (retryAfter) {
-        c.header('Retry-After', retryAfter)
+          return { error: errorMsg, status: 429, retryAfter }
+        }
+
+        const rawSuggestion = data.choices?.[0]?.message?.content?.trim() || ''
+        const suggestion = cleanAIResponse(rawSuggestion, text)
+
+        // Always cache the result, even if empty
+        const finalSuggestion = suggestion || ''
+        cache.set(cacheKey, finalSuggestion)
+        
+        if (suggestion) {
+          console.debug(`[API] Response cached: "${text}" → "${suggestion}"`)
+        } else {
+          console.debug(`[API] Empty response cached for: "${text}"`)
+        }
+
+        return { text: finalSuggestion }
+      } finally {
+        // Remove from in-flight requests when done
+        inFlightRequests.delete(cacheKey)
       }
-      
-      console.debug(`[API] Error cached: "${text}" → ${errorMsg} (retry: ${retryAfter}s)`)
-      return c.json({ error: errorMsg }, 429)
+    })()
+
+    // Store the promise in the in-flight requests map
+    inFlightRequests.set(cacheKey, requestPromise)
+
+    // Wait for the result
+    const result = await requestPromise
+
+    // Handle error response
+    if (result.error) {
+      if (result.retryAfter) {
+        c.header('Retry-After', result.retryAfter.toString())
+      }
+      return c.json({ error: result.error }, result.status as 429)
     }
 
-    const rawSuggestion = data.choices?.[0]?.message?.content?.trim() || ''
-    const suggestion = cleanAIResponse(rawSuggestion, text)
-
-    // Always cache the result, even if empty
-    const finalSuggestion = suggestion || ''
-    cache.set(cacheKey, finalSuggestion)
-    
-    if (suggestion) {
-      console.debug(`[API] Response cached: "${text}" → "${suggestion}"`)
-    } else {
-      console.debug(`[API] Empty response cached for: "${text}"`)
-    }
-
-    return c.json({ text: finalSuggestion })
-
+    return c.json(result)
   } catch (error) {
     console.error('[Error]', error instanceof Error ? error.message : 'Unknown error')
     return c.json({ error: 'Internal server error' }, 500)
@@ -267,7 +295,8 @@ ONLY RETURN THE COMPLETION, NO OTHER TEXT.`
 app.get('/health', (c) => {
   return c.json({
     status: 'healthy',
-    cache: { size: cache.size }
+    cache: { size: cache.size },
+    inFlight: inFlightRequests.size
   })
 })
 
