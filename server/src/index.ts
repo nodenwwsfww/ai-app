@@ -1,38 +1,64 @@
 import { Hono } from "hono";
+import routes from "./routes";
 import { cors } from "hono/cors";
 import { logger } from "hono/logger";
-import { getOpenAIChatCompletion } from "./models/openai";
-
-type AutocompleteRequest = {
-  text: string;
-  url: string;
-};
+import type { MiddlewareHandler } from "hono";
 
 const app = new Hono();
 const port = Number(process.env.PORT) || 3000;
 
-// Middlewares
-app.use("*", logger());
+// Middleware
 app.use("*", cors());
 
-// Routes
-app.get("/", (c) => {
-  return c.json({ message: "CORS enabled!" });
-});
-
-app.post("/", async (c) => {
+// Enhanced logging middleware
+const enhancedLogger: MiddlewareHandler = async (c, next) => {
+  const path = c.req.path;
+  const method = c.req.method;
+  
+  console.log(`[${method}] ${path}`);
+  
+  // Try to log request body if it's JSON
   try {
-    const { text, url } = await c.req.json<AutocompleteRequest>();
-    const completion = await getOpenAIChatCompletion(text, url);
-    return c.json({ text: completion.choices[0].message.content });
-  } catch (error) {
-    console.error(error);
-    return c.json(
-      { error: "An error occurred while processing the request." },
-      500
-    );
+    if (c.req.header("content-type")?.includes("application/json")) {
+      const reqClone = c.req.raw.clone();
+      const reqBody = await reqClone.json();
+      console.log("Request body:", JSON.stringify(reqBody, null, 2));
+    }
+  } catch (e) {
+    console.log("Request body: [Not JSON or empty]");
   }
-});
+  
+  // Track timing
+  const startTime = Date.now();
+  
+  // Process the request
+  await next();
+  
+  // Log response time
+  const endTime = Date.now();
+  console.log(`Response time: ${endTime - startTime}ms`);
+  
+  // Try to log response body if it's JSON
+  try {
+    if (c.res.headers.get("content-type")?.includes("application/json")) {
+      const resClone = c.res.clone();
+      const resBody = await resClone.json();
+      console.log("Response body:", JSON.stringify(resBody, null, 2));
+    } else {
+      console.log("Response body: [Not JSON]");
+    }
+  } catch (e) {
+    console.log("Response body: [Failed to parse]");
+  }
+};
+
+app.use("*", enhancedLogger);
+
+// Standard logger for basic request info
+app.use("*", logger());
+
+// Routes
+app.route("/", routes);
 
 // Start server
 console.log(`Server is running on port ${port}!`);
