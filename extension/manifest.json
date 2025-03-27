@@ -4,6 +4,7 @@
   "version": "1.0",
   "manifest_version": 3,
   "permissions": [
+    "activeTab",
     "https://aiautocomplete.up.railway.app/",
     "http://localhost:8080/"
   ],
@@ -11,7 +12,6 @@
     "default_popup": "src/index.html",
     "default_icon": "icon.png"
   },
-  "permissions": ["activeTab"],
   "content_scripts": [
     {
       "matches": ["<all_urls>"],
