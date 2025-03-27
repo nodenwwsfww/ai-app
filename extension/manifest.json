@@ -5,7 +5,6 @@
   "manifest_version": 3,
   "permissions": [
     "activeTab",
-    "https://aiautocomplete.up.railway.app/",
     "http://localhost:8080/"
   ],
   "action": {

@@ -31,6 +31,15 @@ export const config: PlasmoCSConfig = {
 function PlasmoInject() {
   let apiUrl = DEFAULT_API_URL
 
+  // Try to get API URL from storage
+  if (chrome.storage) {
+    chrome.storage.local.get("apiUrl", (result) => {
+      if (result.apiUrl) {
+        apiUrl = result.apiUrl
+      }
+    })
+  }
+
   // ResizeObserver to adjust ghost text when textarea size changes
   const resizeObserver = new ResizeObserver((entries) => {
     for (let entry of entries) {
