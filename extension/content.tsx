@@ -19,7 +19,7 @@ export const getStyle = () => {
 }
 
 // Default API URL if not set in settings
-const DEFAULT_API_URL = "http://localhost:8080"
+const DEFAULT_API_URL = "http://localhost:8080/complete"
 
 // Configuration for the content script
 export const config: PlasmoCSConfig = {
