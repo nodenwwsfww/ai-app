@@ -5,6 +5,13 @@ import { useEffect, useState } from "react"
 // Define types for input elements that we'll support
 type SupportedElement = HTMLInputElement | HTMLTextAreaElement | Element;
 
+// Updated request type to include screenshot
+interface CompleteRequest {
+  text: string;
+  url: string;
+  screenshot?: string;
+}
+
 const DEFAULT_API_URL = "http://localhost:8080/complete"
 
 export const config: PlasmoCSConfig = {
@@ -16,6 +23,179 @@ export const getStyle = () => {
   const style = document.createElement("style")
   style.textContent = cssText
   return style
+}
+
+// Add styles for floating button
+const injectFloatingButtonStyles = () => {
+  const style = document.createElement("style")
+  style.textContent = `
+    .floating-screenshot-btn {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      width: 50px;
+      height: 50px;
+      background-color: #34a853;
+      color: white;
+      border: none;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+      z-index: 999999;
+      transition: all 0.3s ease;
+    }
+    
+    .floating-screenshot-btn:hover {
+      transform: scale(1.1);
+      background-color: #2d9147;
+    }
+    
+    .floating-screenshot-btn:active {
+      transform: scale(0.95);
+    }
+    
+    .floating-screenshot-btn svg {
+      width: 24px;
+      height: 24px;
+    }
+    
+    .floating-screenshot-status {
+      position: fixed;
+      bottom: 80px;
+      right: 20px;
+      padding: 8px 12px;
+      background-color: rgba(0, 0, 0, 0.7);
+      color: white;
+      border-radius: 4px;
+      font-size: 14px;
+      z-index: 999999;
+      max-width: 300px;
+      opacity: 0;
+      transition: opacity 0.3s ease;
+    }
+    
+    .floating-screenshot-status.visible {
+      opacity: 1;
+    }
+    
+    .loading-spinner {
+      animation: spin 1s linear infinite;
+    }
+    
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+  `
+  document.head.appendChild(style)
+}
+
+// Function to create the floating button
+const createFloatingButton = (apiUrl: string) => {
+  // First check if button already exists
+  if (document.querySelector('.floating-screenshot-btn')) {
+    return
+  }
+  
+  // Create button
+  const button = document.createElement('button')
+  button.className = 'floating-screenshot-btn'
+  button.title = 'Take a screenshot for AI analysis'
+  button.innerHTML = `
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+      <circle cx="8.5" cy="8.5" r="1.5"></circle>
+      <polyline points="21 15 16 10 5 21"></polyline>
+    </svg>
+  `
+  
+  // Create status element
+  const statusEl = document.createElement('div')
+  statusEl.className = 'floating-screenshot-status'
+  
+  // Append elements to body
+  document.body.appendChild(button)
+  document.body.appendChild(statusEl)
+  
+  // Click handler for the button
+  button.addEventListener('click', async () => {
+    // Show processing status
+    button.innerHTML = `
+      <svg class="loading-spinner" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="10"></circle>
+        <path d="M12 6v6l4 2"></path>
+      </svg>
+    `
+    statusEl.textContent = 'Capturing screenshot...'
+    statusEl.className = 'floating-screenshot-status visible'
+    
+    try {
+      // Send message to background script to capture screenshot
+      chrome.runtime.sendMessage({ action: "captureVisibleTab" }, async (response) => {
+        if (chrome.runtime.lastError) {
+          statusEl.textContent = `Error: ${chrome.runtime.lastError.message}`
+          resetButton()
+          setTimeout(() => { statusEl.className = 'floating-screenshot-status' }, 3000)
+          return
+        }
+        
+        if (!response.success) {
+          statusEl.textContent = `Error: ${response.error || 'Failed to capture screenshot'}`
+          resetButton()
+          setTimeout(() => { statusEl.className = 'floating-screenshot-status' }, 3000)
+          return
+        }
+        
+        // Screenshot captured successfully
+        statusEl.textContent = 'Sending to OpenAI...'
+        
+        try {
+          // Get target API URL
+          const targetUrl = apiUrl || DEFAULT_API_URL
+          
+          // Send screenshot to API
+          const apiResponse = await fetch(targetUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              text: "What's in this screenshot?",
+              url: window.location.href,
+              screenshot: response.dataUrl
+            })
+          })
+          
+          if (apiResponse.ok) {
+            const data = await apiResponse.json()
+            statusEl.textContent = 'Screenshot processed successfully!'
+          } else {
+            statusEl.textContent = `Error: API returned ${apiResponse.status}`
+          }
+        } catch (error) {
+          statusEl.textContent = `Error: ${error.message}`
+        } finally {
+          resetButton()
+          setTimeout(() => { statusEl.className = 'floating-screenshot-status' }, 3000)
+        }
+      })
+    } catch (error) {
+      statusEl.textContent = `Error: ${error.message}`
+      resetButton()
+      setTimeout(() => { statusEl.className = 'floating-screenshot-status' }, 3000)
+    }
+    
+    function resetButton() {
+      button.innerHTML = `
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+          <circle cx="8.5" cy="8.5" r="1.5"></circle>
+          <polyline points="21 15 16 10 5 21"></polyline>
+        </svg>
+      `
+    }
+  })
 }
 
 const debounce = (func: Function, wait: number) => {
@@ -67,7 +247,17 @@ function PlasmoOverlay() {
         if (result.apiUrl) {
           setApiUrl(result.apiUrl)
         }
+        
+        // Inject floating button styles
+        injectFloatingButtonStyles()
+        
+        // Create floating button
+        createFloatingButton(result.apiUrl || DEFAULT_API_URL)
       })
+    } else {
+      // Fallback if chrome.storage is not available
+      injectFloatingButtonStyles()
+      createFloatingButton(DEFAULT_API_URL)
     }
     
     // Track processed elements to avoid duplicating work
@@ -179,19 +369,59 @@ function PlasmoOverlay() {
         }
         
         try {
+          console.log("Preparing API request, trying to capture screenshot...")
+          
+          // Try to capture screenshot
+          let screenshotData: string | undefined = undefined;
+          try {
+            // Send message to background script
+            const response = await new Promise<any>((resolve) => {
+              chrome.runtime.sendMessage({ action: "captureVisibleTab" }, (result) => {
+                console.log("Received response from background:", result)
+                if (chrome.runtime.lastError) {
+                  console.error("Chrome runtime error:", chrome.runtime.lastError)
+                  resolve({ success: false, error: chrome.runtime.lastError.message })
+                } else {
+                  resolve(result || { success: false, error: "Empty response" })
+                }
+              })
+            });
+            
+            if (response && response.success && response.dataUrl) {
+              console.log("Screenshot captured successfully, length:", response.dataUrl.length)
+              screenshotData = response.dataUrl
+            } else {
+              console.error("Failed to capture screenshot:", response?.error || "Unknown error")
+            }
+          } catch (error) {
+            console.error("Exception during screenshot capture:", error)
+          }
+          
+          // Prepare request
+          const requestBody: CompleteRequest = {
+            text: value,
+            url: window.location.href
+          }
+          
+          // Add screenshot if available
+          if (screenshotData) {
+            console.log("Adding screenshot to request, data length:", screenshotData.length)
+            requestBody.screenshot = screenshotData
+          } else {
+            console.log("No screenshot data to add to request")
+          }
+          
+          console.log("Sending request to API:", apiUrl)
           const response = await fetch(apiUrl, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              text: value,
-              url: window.location.href
-            })
+            body: JSON.stringify(requestBody)
           });
           
           const { text } = await response.json();
           ghostText.textContent = value + text;
         } catch (error) {
-          console.error(error);
+          console.error("API request error:", error);
           ghostText.textContent = value;
         }
       }, 500);

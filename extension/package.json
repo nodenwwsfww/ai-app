@@ -30,7 +30,8 @@
     ],
     "permissions": [
       "storage",
-      "activeTab"
+      "activeTab",
+      "tabs"
     ]
   },
   "trustedDependencies": [

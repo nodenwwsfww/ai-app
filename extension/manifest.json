@@ -4,22 +4,34 @@
   "version": "1.0",
   "manifest_version": 3,
   "permissions": [
+    "storage",
     "activeTab",
-    "http://localhost:8080/"
+    "scripting",
+    "tabs"
+  ],
+  "host_permissions": [
+    "http://*/*",
+    "https://*/*",
+    "<all_urls>"
   ],
   "action": {
-    "default_popup": "src/index.html",
+    "default_popup": "popup.html",
     "default_icon": "icon.png"
+  },
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
   },
   "content_scripts": [
     {
       "matches": ["<all_urls>"],
-      "js": ["src/index.js"]
+      "js": ["content.js"],
+      "run_at": "document_end"
     }
   ],
   "web_accessible_resources": [
     {
-      "resources": ["src/popup.js"],
+      "resources": ["*.js"],
       "matches": ["<all_urls>"]
     }
   ]
