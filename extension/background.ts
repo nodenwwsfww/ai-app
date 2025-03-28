@@ -1,30 +1,34 @@
-console.log("Background script loaded")
+interface TabScreenshot {
+  screenshot: string;
+  timestamp: number;
+}
 
-// Listen for screenshot capture requests
-chrome.runtime.onMessage.addListener(
-  function(request, sender, sendResponse) {
-    console.log("Background received message:", request)
-    
-    // Check for msg property as used in the content script
-    if (request.msg === "capture") {
-      console.log("Attempting to capture screenshot...")
-      
-      chrome.tabs.captureVisibleTab(
-        null,
-        { format: "png", quality: 100 },
-        function(dataUrl) {
-          if (dataUrl) {  
-            console.log("Screenshot captured, length:", dataUrl.length)
-            sendResponse({success: true, dataUrl: dataUrl});
-          } else {
-            console.error("No screenshot data returned")
-            sendResponse({success: false, error: "No screenshot data returned"});
-          }
-        }
-      );
-      
-      // Return true to indicate we'll send a response asynchronously
-      return true;
-    }
+const tabScreenshots = new Map<number, TabScreenshot>();
+
+chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+  if (!sender.tab?.id) return;
+
+  switch (request.type) {
+    case 'STORE_SCREENSHOT':
+      tabScreenshots.set(sender.tab.id, {
+        screenshot: request.screenshot,
+        timestamp: Date.now()
+      });
+      sendResponse({ success: true });
+      break;
+
+    case 'GET_SCREENSHOT':
+      const data = tabScreenshots.get(sender.tab.id);
+      sendResponse({ screenshot: data?.screenshot });
+      break;
+
+    case 'HAS_SCREENSHOT':
+      sendResponse({ hasScreenshot: tabScreenshots.has(sender.tab.id) });
+      break;
   }
-);
+});
+
+// Clean up when tab is closed
+chrome.tabs.onRemoved.addListener((tabId) => {
+  tabScreenshots.delete(tabId);
+});
