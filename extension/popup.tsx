@@ -27,70 +27,6 @@ function IndexPopup() {
     }
   }
 
-  const captureAndSendScreenshot = async () => {
-    setLoading(true)
-    setMessage("")
-    
-    try {
-      // Get the active tab
-      const [tab] = await chrome.tabs.query({active: true, lastFocusedWindow: true})
-      
-      if (!tab || !tab.id) {
-        setMessage("Error: Cannot get active tab")
-        setLoading(false)
-        return
-      }
-      
-      // Send screenshot request to content script
-      chrome.tabs.sendMessage(tab.id, {action: "screenshot"}, async (response) => {
-        if (chrome.runtime.lastError) {
-          setMessage("Error: " + chrome.runtime.lastError.message)
-          setLoading(false)
-          return
-        }
-        
-        if (!response || !response.success || !response.dataUrl) {
-          setMessage("Error: Failed to capture screenshot")
-          setLoading(false)
-          return
-        }
-        
-        // Set the screenshot data for preview
-        setScreenshotData(response.dataUrl)
-        
-        try {
-          // Get target API URL
-          const targetUrl = apiUrl || "http://localhost:8080/complete"
-          
-          // Send screenshot to API
-          const apiResponse = await fetch(targetUrl, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              text: "What's in this screenshot?",
-              url: tab.url,
-              screenshot: response.dataUrl
-            })
-          })
-          
-          if (apiResponse.ok) {
-            const data = await apiResponse.json()
-            setMessage("Screenshot sent successfully!")
-          } else {
-            setMessage("Error: API returned " + apiResponse.status)
-          }
-        } catch (error) {
-          setMessage("Error: " + error.message)
-        } finally {
-          setLoading(false)
-        }
-      })
-    } catch (error) {
-      setMessage("Error: " + error.message)
-      setLoading(false)
-    }
-  }
-
   return (
     <div
       style={{
@@ -128,22 +64,6 @@ function IndexPopup() {
         Save Settings
       </button>
       
-      <button 
-        style={{
-          marginTop: 8,
-          padding: "8px 12px",
-          backgroundColor: "#34a853",
-          color: "white",
-          border: "none",
-          borderRadius: 4,
-          cursor: loading ? "default" : "pointer",
-          opacity: loading ? 0.7 : 1
-        }}
-        onClick={captureAndSendScreenshot}
-        disabled={loading}
-      >
-        {loading ? "Processing..." : "Capture & Send to OpenAI"}
-      </button>
       
       {message && (
         <p style={{ 

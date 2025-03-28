@@ -26,35 +26,35 @@ export const getStyle = () => {
   return style
 }
 
-// Add message listener for screenshots
-chrome.runtime.onMessage.addListener(
-  function(request, sender, sendResponse) {
-    console.log("Content script received message:", request);
+// // Add message listener for screenshots
+// chrome.runtime.onMessage.addListener(
+//   function(request, sender, sendResponse) {
+//     console.log("Content script received message:", request);
     
-    if (request.action === "screenshot") {
-      console.log("Taking screenshot with html2canvas...");
+//     if (request.action === "screenshot") {
+//       console.log("Taking screenshot with html2canvas...");
       
-      html2canvas(document.body, {
-        logging: false,
-        allowTaint: true,
-        useCORS: true,
-        scale: window.devicePixelRatio
-      }).then(function(canvas) {
-        const dataURL = canvas.toDataURL("image/png", 1.0);
-        console.log("Screenshot captured with html2canvas, length:", dataURL.length);
+//       html2canvas(document.body, {
+//         logging: false,
+//         allowTaint: true,
+//         useCORS: true,
+//         scale: window.devicePixelRatio
+//       }).then(function(canvas) {
+//         const dataURL = canvas.toDataURL("image/png", 1.0);
+//         console.log("Screenshot captured with html2canvas, length:", dataURL.length);
         
-        // Send the screenshot data back
-        sendResponse({success: true, dataUrl: dataURL});
-      }).catch(error => {
-        console.error("html2canvas error:", error);
-        sendResponse({success: false, error: error.message});
-      });
+//         // Send the screenshot data back
+//         sendResponse({success: true, dataUrl: dataURL});
+//       }).catch(error => {
+//         console.error("html2canvas error:", error);
+//         sendResponse({success: false, error: error.message});
+//       });
       
-      // Return true to indicate we'll send a response asynchronously
-      return true;
-    }
-  }
-);
+//       // Return true to indicate we'll send a response asynchronously
+//       return true;
+//     }
+//   }
+// );
 
 // Add styles for floating button
 const injectFloatingButtonStyles = () => {
@@ -360,10 +360,10 @@ function PlasmoOverlay() {
         }
       });
       
-      // Sometimes mutations don't directly capture all elements, so periodically recheck
-      if (needsProcessing) {
-        processAllElements();
-      }
+      // REMOVED redundant processAllElements call
+      // if (needsProcessing) {
+      //   processAllElements();
+      // }
     });
     
     observer.observe(document.body, { 

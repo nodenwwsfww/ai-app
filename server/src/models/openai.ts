@@ -4,21 +4,14 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
-// Define proper types for OpenAI messages
-type ContentItem = {
-  type: string;
-  text?: string;
-  image_url?: {
-    url: string;
-  };
-};
+const model = "gpt-4o-mini";
 
 export async function getOpenAIChatCompletion(
   existingText: string,
   url: string,
   screenshot?: string
 ) {
-  console.log("Preparing OpenAI request with model: gpt-4o");
+  console.log("Preparing OpenAI request with model: ", model);
   
   const systemMessage = {
     role: "system" as const,
@@ -74,7 +67,7 @@ export async function getOpenAIChatCompletion(
   try {
     console.log("Sending request to OpenAI...");
     const result = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
+      model: model,
       messages: [systemMessage, userMessage],
     });
     console.log("OpenAI request successful");
