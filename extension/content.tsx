@@ -26,36 +26,6 @@ export const getStyle = () => {
   return style
 }
 
-// // Add message listener for screenshots
-// chrome.runtime.onMessage.addListener(
-//   function(request, sender, sendResponse) {
-//     console.log("Content script received message:", request);
-    
-//     if (request.action === "screenshot") {
-//       console.log("Taking screenshot with html2canvas...");
-      
-//       html2canvas(document.body, {
-//         logging: false,
-//         allowTaint: true,
-//         useCORS: true,
-//         scale: window.devicePixelRatio
-//       }).then(function(canvas) {
-//         const dataURL = canvas.toDataURL("image/png", 1.0);
-//         console.log("Screenshot captured with html2canvas, length:", dataURL.length);
-        
-//         // Send the screenshot data back
-//         sendResponse({success: true, dataUrl: dataURL});
-//       }).catch(error => {
-//         console.error("html2canvas error:", error);
-//         sendResponse({success: false, error: error.message});
-//       });
-      
-//       // Return true to indicate we'll send a response asynchronously
-//       return true;
-//     }
-//   }
-// );
-
 // Add styles for floating button
 const injectFloatingButtonStyles = () => {
   const style = document.createElement("style")
@@ -277,8 +247,64 @@ const setElementValue = (element: SupportedElement, value: string): void => {
   }
 }
 
+// Add styles for ghost text
+const injectGhostTextStyles = () => {
+  const style = document.createElement("style")
+  style.textContent = `
+    .ghost-text {
+      position: absolute;
+      pointer-events: none;
+      z-index: 1;
+      color: rgba(204, 204, 204, 0.7);
+      background: none;
+      overflow: hidden;
+      white-space: pre-wrap;
+      word-wrap: break-word;
+      border-color: transparent;
+      border-style: solid;
+      box-sizing: border-box;
+      display: flex;
+      align-items: center; /* Helps with vertical alignment */
+    }
+    
+    /* Fix for inputs with native appearance */
+    input[type="text"] + .ghost-text,
+    input[type="email"] + .ghost-text,
+    input[type="password"] + .ghost-text,
+    input[type="search"] + .ghost-text,
+    input[type="url"] + .ghost-text,
+    input[type="tel"] + .ghost-text {
+      text-indent: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      /* These properties help with vertical centering */
+      display: flex;
+      align-items: center;
+      justify-content: flex-start;
+      /* Improve text positioning */
+      padding-top: 0 !important;
+      line-height: normal;
+    }
+    
+    /* Fix for textareas */
+    textarea + .ghost-text {
+      white-space: pre-wrap;
+      word-break: break-word;
+      display: block; /* Different display mode for textareas */
+      align-items: initial;
+    }
+    
+    /* Force correct text alignment for common input elements */
+    .ghost-text {
+      padding-top: 0;
+    }
+  `
+  document.head.appendChild(style)
+}
+
 function PlasmoOverlay() {
   const [apiUrl, setApiUrl] = useState(DEFAULT_API_URL)
+  const [screenshotTimestamps, setScreenshotTimestamps] = useState<number[]>([]);
   
   useEffect(() => {
     if (chrome?.storage?.local) {
@@ -290,12 +316,16 @@ function PlasmoOverlay() {
         // Inject floating button styles
         injectFloatingButtonStyles()
         
+        // Inject ghost text styles
+        injectGhostTextStyles()
+        
         // Create floating button
         createFloatingButton(result.apiUrl || DEFAULT_API_URL)
       })
     } else {
       // Fallback if chrome.storage is not available
       injectFloatingButtonStyles()
+      injectGhostTextStyles()
       createFloatingButton(DEFAULT_API_URL)
     }
     
@@ -318,7 +348,7 @@ function PlasmoOverlay() {
       // Find and setup all supported input elements
       document.querySelectorAll('textarea, input, [contenteditable="true"]').forEach(element => {
         if (isSupportedElement(element) && !processed.has(element)) {
-          setupInputElement(element as SupportedElement);
+          setupInputElement(element as SupportedElement, screenshotTimestamps, setScreenshotTimestamps);
           processed.add(element);
           resizeObserver.observe(element);
         }
@@ -340,7 +370,7 @@ function PlasmoOverlay() {
               
               // Check if the added node is a supported input element
               if (isSupportedElement(element) && !processed.has(element)) {
-                setupInputElement(element as SupportedElement);
+                setupInputElement(element as SupportedElement, screenshotTimestamps, setScreenshotTimestamps);
                 processed.add(element);
                 resizeObserver.observe(element);
               }
@@ -348,7 +378,7 @@ function PlasmoOverlay() {
               // Check for supported elements inside the added node
               element.querySelectorAll?.('textarea, input, [contenteditable="true"]').forEach(childElement => {
                 if (isSupportedElement(childElement) && !processed.has(childElement)) {
-                  setupInputElement(childElement as SupportedElement);
+                  setupInputElement(childElement as SupportedElement, screenshotTimestamps, setScreenshotTimestamps);
                   processed.add(childElement);
                   resizeObserver.observe(childElement);
                 }
@@ -390,8 +420,8 @@ function PlasmoOverlay() {
     };
   }, [apiUrl]);
   
-  // Setup function for any supported input element
-  const setupInputElement = (element: SupportedElement) => {
+  // Setup function accepts state and setter
+  const setupInputElement = (element: SupportedElement, timestamps: number[], setTimestamps: React.Dispatch<React.SetStateAction<number[]>>) => {
     // Create ghost text element
     const ghostText = document.createElement('div');
     ghostText.classList.add('ghost-text');
@@ -399,6 +429,88 @@ function PlasmoOverlay() {
     if (element.parentNode) {
       element.parentNode.insertBefore(ghostText, element.nextSibling);
       copyStyles(element, ghostText);
+      
+      // Apply an initial position fix with a short delay to ensure rendering is complete
+      setTimeout(() => {
+        // Get element positions
+        const elementRect = element.getBoundingClientRect();
+        const ghostRect = ghostText.getBoundingClientRect();
+        
+        console.log("Initial position measurement:", {
+          element: {
+            top: elementRect.top,
+            height: elementRect.height
+          },
+          ghost: {
+            top: ghostRect.top,
+            height: ghostRect.height
+          }
+        });
+        
+        // Apply correction if ghost text is positioned higher
+        if (ghostRect.top < elementRect.top) {
+          const correction = elementRect.top - ghostRect.top;
+          console.log("Applying initial vertical correction:", correction);
+          ghostText.style.transform = `translateY(${correction}px)`;
+        }
+      }, 50);
+      
+      // Function to update ghost text position
+      const updateGhostTextPosition = () => {
+        // Debug
+        console.log("Updating ghost text position for", element.tagName);
+        
+        // Ensure the ghost text is correctly positioned
+        copyStyles(element, ghostText);
+        
+        // For elements that might have complex padding/scrolling
+        if (element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement) {
+          // Get computed styles for more accurate positioning
+          const computedStyle = window.getComputedStyle(element);
+          
+          // Parse important style values
+          const paddingTop = parseInt(computedStyle.paddingTop) || 0;
+          const borderTop = parseInt(computedStyle.borderTopWidth) || 0;
+          
+          console.log("Input metrics:", {
+            paddingTop,
+            borderTop,
+            scrollTop: element.scrollTop,
+            scrollLeft: element.scrollLeft
+          });
+          
+          // Reset the padding before setting the new values to avoid accumulation
+          ghostText.style.paddingTop = `${paddingTop}px`;
+          ghostText.style.paddingLeft = `${parseInt(computedStyle.paddingLeft) || 0}px`;
+          
+          // Adjust for scrolling
+          ghostText.style.paddingTop = `${paddingTop - element.scrollTop}px`;
+          ghostText.style.paddingLeft = `${parseInt(ghostText.style.paddingLeft) + element.scrollLeft}px`;
+          
+          // Try to fix vertical alignment with a transform
+          // This helps in cases where the text baseline is misaligned
+          ghostText.style.transform = 'translateY(0)';
+        }
+        
+        // Debug final positions
+        setTimeout(() => {
+          const elementRect = element.getBoundingClientRect();
+          const ghostRect = ghostText.getBoundingClientRect();
+          
+          console.log("Position comparison:", {
+            elementTop: elementRect.top,
+            ghostTop: ghostRect.top,
+            difference: ghostRect.top - elementRect.top
+          });
+          
+          // If the ghost text is still too high, apply a correction
+          if (ghostRect.top < elementRect.top) {
+            const correction = elementRect.top - ghostRect.top;
+            console.log("Applying vertical correction:", correction);
+            ghostText.style.transform = `translateY(${correction}px)`;
+          }
+        }, 10);
+      };
       
       // Create debounced function for API calls
       const debouncedGetSuggestion = debounce(async (value: string) => {
@@ -408,25 +520,44 @@ function PlasmoOverlay() {
         }
         
         try {
-          console.log("Preparing API request, trying to capture screenshot...")
+          console.log("Preparing API request, checking screenshot rate limit...")
           
-          // Try to capture screenshot
+          // --- Screenshot Rate Limiting Logic --- START ---
+          let shouldTakeScreenshot = false;
+          const now = Date.now();
+          const oneMinuteAgo = now - 60 * 1000;
+  
+          // Filter old timestamps
+          const recentTimestamps = timestamps.filter(ts => ts > oneMinuteAgo);
+  
+          if (recentTimestamps.length < 2) {
+            shouldTakeScreenshot = true;
+            // Add timestamp for this attempt *before* the async operation
+            setTimestamps([...recentTimestamps, now]); 
+          } else {
+            console.log("Screenshot rate limit hit (max 2 per minute). Skipping screenshot.");
+          }
+          // --- Screenshot Rate Limiting Logic --- END ---
+  
+          // Try to capture screenshot only if rate limit allows
           let screenshotData: string | undefined = undefined;
-          try {
-            console.log("Capturing autocomplete screenshot with html2canvas...")
-            
-            // Use html2canvas directly
-            const canvas = await html2canvas(document.body, {
-              logging: false,
-              allowTaint: true,
-              useCORS: true,
-              scale: window.devicePixelRatio
-            });
-            
-            screenshotData = canvas.toDataURL("image/png", 1.0);
-            console.log("Screenshot captured with html2canvas, length:", screenshotData.length)
-          } catch (error) {
-            console.error("html2canvas error:", error)
+          if (shouldTakeScreenshot) {
+            try {
+              console.log("Capturing autocomplete screenshot with html2canvas...")
+              
+              // Use html2canvas directly
+              const canvas = await html2canvas(document.body, {
+                logging: false,
+                allowTaint: true,
+                useCORS: true,
+                scale: window.devicePixelRatio
+              });
+              
+              screenshotData = canvas.toDataURL("image/png", 1.0);
+              console.log("Screenshot captured with html2canvas, length:", screenshotData.length)
+            } catch (error) {
+              console.error("html2canvas error:", error)
+            }
           }
           
           // Prepare request
@@ -452,6 +583,7 @@ function PlasmoOverlay() {
           
           const { text } = await apiResponse.json();
           ghostText.textContent = value + text;
+          updateGhostTextPosition(); // Update position after text is set
         } catch (error) {
           console.error("API request error:", error);
           ghostText.textContent = value;
@@ -467,6 +599,12 @@ function PlasmoOverlay() {
           ghostText.textContent = value;
           debouncedGetSuggestion(value);
         }
+        updateGhostTextPosition(); // Update after input
+      };
+      
+      // Handle scroll events
+      const handleScroll = () => {
+        updateGhostTextPosition();
       };
       
       // Keydown event for all element types
@@ -481,23 +619,34 @@ function PlasmoOverlay() {
           // Clear on Enter, but for textareas only clear on Ctrl+Enter or Cmd+Enter
           ghostText.textContent = '';
         }
+        
+        // Update after key events
+        setTimeout(updateGhostTextPosition, 0);
       };
       
       // Add event listeners based on element type
       if (element.tagName === 'TEXTAREA' || element.tagName === 'INPUT') {
         element.addEventListener('input', handleInput);
+        element.addEventListener('scroll', handleScroll);
       } else {
         // For contenteditable
         element.addEventListener('input', handleInput);
         element.addEventListener('blur', handleInput); // Sometimes needed for contenteditable
+        element.addEventListener('scroll', handleScroll);
       }
       
       element.addEventListener('keydown', handleKeyDown);
+      
+      // Update position on window resize
+      window.addEventListener('resize', updateGhostTextPosition);
     }
   };
   
   // Copy styles from source to target element
   const copyStyles = (source: Element, target: HTMLElement) => {
+    // Debugging
+    console.log("Copying styles from", source.tagName, "to ghost text");
+    
     // Ensure parent has position for absolute positioning to work
     const parent = source.parentNode as HTMLElement;
     const computedParentStyle = window.getComputedStyle(parent);
@@ -506,13 +655,43 @@ function PlasmoOverlay() {
     }
     
     const computedStyle = window.getComputedStyle(source);
+    
+    // Debug source element position and dimensions
+    const sourceRect = source.getBoundingClientRect();
+    console.log("Source element rect:", {
+      top: sourceRect.top,
+      left: sourceRect.left,
+      width: sourceRect.width,
+      height: sourceRect.height
+    });
+    
+    // More comprehensive list of styles to copy
     const stylesToCopy = [
-      'font-size', 'font-family', 'text-align',
+      'font-size', 'font-family', 'font-weight', 'letter-spacing',
+      'text-align', 'text-indent', 'text-transform',
       'padding-bottom', 'padding-top', 'padding-left', 'padding-right',
       'border-bottom-width', 'border-top-width', 'border-left-width', 'border-right-width',
       'box-sizing', 'line-height', 'width', 'height',
-      'margin-top', 'margin-bottom', 'margin-left', 'margin-right'
+      'margin-top', 'margin-bottom', 'margin-left', 'margin-right',
+      'direction', 'writing-mode', 'vertical-align'
     ];
+    
+    // Capture important vertical alignment properties
+    const lineHeight = computedStyle.getPropertyValue('line-height');
+    const verticalAlign = computedStyle.getPropertyValue('vertical-align');
+    const paddingTop = computedStyle.getPropertyValue('padding-top');
+    const paddingBottom = computedStyle.getPropertyValue('padding-bottom');
+    const borderTopWidth = computedStyle.getPropertyValue('border-top-width');
+    const borderBottomWidth = computedStyle.getPropertyValue('border-bottom-width');
+    
+    console.log("Source vertical properties:", {
+      lineHeight,
+      verticalAlign,
+      paddingTop,
+      paddingBottom,
+      borderTopWidth,
+      borderBottomWidth
+    });
     
     stylesToCopy.forEach(style => {
       target.style[style as any] = computedStyle.getPropertyValue(style);
@@ -520,10 +699,14 @@ function PlasmoOverlay() {
     
     // Set ghost text styles
     target.style.position = 'absolute';
+    
+    // Rather than setting all edges to 0, we'll be more precise with placement
+    // This is especially important for vertical alignment
     target.style.top = '0';
     target.style.left = '0';
-    target.style.right = '0';
-    target.style.bottom = '0';
+    target.style.width = `${source.clientWidth}px`;
+    target.style.height = `${source.clientHeight}px`;
+    
     target.style.pointerEvents = 'none';
     target.style.zIndex = '1';
     target.style.color = 'rgba(204, 204, 204, 0.7)';
@@ -533,6 +716,24 @@ function PlasmoOverlay() {
     target.style.wordWrap = 'break-word';
     target.style.borderColor = 'transparent';
     target.style.borderStyle = 'solid';
+    
+    // Sync scrolling position
+    if (source instanceof HTMLInputElement || source instanceof HTMLTextAreaElement) {
+      target.scrollTop = source.scrollTop;
+      target.scrollLeft = source.scrollLeft;
+    } else if ('scrollTop' in source && 'scrollLeft' in source) {
+      target.scrollTop = (source as any).scrollTop;
+      target.scrollLeft = (source as any).scrollLeft;
+    }
+    
+    // Debug target positioning after style copy
+    const targetRect = target.getBoundingClientRect();
+    console.log("Ghost text rect after style copy:", {
+      top: targetRect.top,
+      left: targetRect.left,
+      width: targetRect.width,
+      height: targetRect.height
+    });
   };
   
   return null;
