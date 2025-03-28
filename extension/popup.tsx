@@ -27,44 +27,57 @@ function IndexPopup() {
     }
   }
 
-  const captureAndSendScreenshot = () => {
+  const captureAndSendScreenshot = async () => {
     setLoading(true)
     setMessage("")
-    setScreenshotData("")
     
     try {
-      chrome.tabs.captureVisibleTab(async (dataUrl) => {
+      // Get the active tab
+      const [tab] = await chrome.tabs.query({active: true, lastFocusedWindow: true})
+      
+      if (!tab || !tab.id) {
+        setMessage("Error: Cannot get active tab")
+        setLoading(false)
+        return
+      }
+      
+      // Send screenshot request to content script
+      chrome.tabs.sendMessage(tab.id, {action: "screenshot"}, async (response) => {
         if (chrome.runtime.lastError) {
           setMessage("Error: " + chrome.runtime.lastError.message)
           setLoading(false)
           return
         }
         
-        setScreenshotData(dataUrl)
+        if (!response || !response.success || !response.dataUrl) {
+          setMessage("Error: Failed to capture screenshot")
+          setLoading(false)
+          return
+        }
+        
+        // Set the screenshot data for preview
+        setScreenshotData(response.dataUrl)
         
         try {
-          // Get current active tab
-          const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
-          
           // Get target API URL
           const targetUrl = apiUrl || "http://localhost:8080/complete"
           
           // Send screenshot to API
-          const response = await fetch(targetUrl, {
+          const apiResponse = await fetch(targetUrl, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               text: "What's in this screenshot?",
               url: tab.url,
-              screenshot: dataUrl
+              screenshot: response.dataUrl
             })
           })
           
-          if (response.ok) {
-            const data = await response.json()
-            setMessage("Screenshot processed successfully!")
+          if (apiResponse.ok) {
+            const data = await apiResponse.json()
+            setMessage("Screenshot sent successfully!")
           } else {
-            setMessage("Error: API returned " + response.status)
+            setMessage("Error: API returned " + apiResponse.status)
           }
         } catch (error) {
           setMessage("Error: " + error.message)

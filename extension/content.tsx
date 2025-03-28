@@ -1,6 +1,7 @@
 import cssText from "data-text:./style.css"
 import type { PlasmoCSConfig } from "plasmo"
 import { useEffect, useState } from "react"
+import html2canvas from "html2canvas"
 
 // Define types for input elements that we'll support
 type SupportedElement = HTMLInputElement | HTMLTextAreaElement | Element;
@@ -24,6 +25,36 @@ export const getStyle = () => {
   style.textContent = cssText
   return style
 }
+
+// Add message listener for screenshots
+chrome.runtime.onMessage.addListener(
+  function(request, sender, sendResponse) {
+    console.log("Content script received message:", request);
+    
+    if (request.action === "screenshot") {
+      console.log("Taking screenshot with html2canvas...");
+      
+      html2canvas(document.body, {
+        logging: false,
+        allowTaint: true,
+        useCORS: true,
+        scale: window.devicePixelRatio
+      }).then(function(canvas) {
+        const dataURL = canvas.toDataURL("image/png", 1.0);
+        console.log("Screenshot captured with html2canvas, length:", dataURL.length);
+        
+        // Send the screenshot data back
+        sendResponse({success: true, dataUrl: dataURL});
+      }).catch(error => {
+        console.error("html2canvas error:", error);
+        sendResponse({success: false, error: error.message});
+      });
+      
+      // Return true to indicate we'll send a response asynchronously
+      return true;
+    }
+  }
+);
 
 // Add styles for floating button
 const injectFloatingButtonStyles = () => {
@@ -133,21 +164,17 @@ const createFloatingButton = (apiUrl: string) => {
     statusEl.className = 'floating-screenshot-status visible'
     
     try {
-      // Send message to background script to capture screenshot
-      chrome.runtime.sendMessage({ action: "captureVisibleTab" }, async (response) => {
-        if (chrome.runtime.lastError) {
-          statusEl.textContent = `Error: ${chrome.runtime.lastError.message}`
-          resetButton()
-          setTimeout(() => { statusEl.className = 'floating-screenshot-status' }, 3000)
-          return
-        }
-        
-        if (!response.success) {
-          statusEl.textContent = `Error: ${response.error || 'Failed to capture screenshot'}`
-          resetButton()
-          setTimeout(() => { statusEl.className = 'floating-screenshot-status' }, 3000)
-          return
-        }
+      // Use html2canvas directly
+      console.log("Taking screenshot with html2canvas...")
+      
+      html2canvas(document.body, {
+        logging: false,
+        allowTaint: true,
+        useCORS: true,
+        scale: window.devicePixelRatio
+      }).then(async function(canvas) {
+        const dataURL = canvas.toDataURL("image/png", 1.0)
+        console.log("Screenshot captured with html2canvas, length:", dataURL.length)
         
         // Screenshot captured successfully
         statusEl.textContent = 'Sending to OpenAI...'
@@ -163,7 +190,7 @@ const createFloatingButton = (apiUrl: string) => {
             body: JSON.stringify({
               text: "What's in this screenshot?",
               url: window.location.href,
-              screenshot: response.dataUrl
+              screenshot: dataURL
             })
           })
           
@@ -179,6 +206,11 @@ const createFloatingButton = (apiUrl: string) => {
           resetButton()
           setTimeout(() => { statusEl.className = 'floating-screenshot-status' }, 3000)
         }
+      }).catch(error => {
+        console.error("html2canvas error:", error)
+        statusEl.textContent = `Error: ${error.message}`
+        resetButton()
+        setTimeout(() => { statusEl.className = 'floating-screenshot-status' }, 3000)
       })
     } catch (error) {
       statusEl.textContent = `Error: ${error.message}`
@@ -196,6 +228,13 @@ const createFloatingButton = (apiUrl: string) => {
       `
     }
   })
+  
+  // Simulate one click after a short delay
+  setTimeout(() => {
+    console.log("Simulating click on screenshot button")
+    const clickEvent = new CustomEvent('click')
+    button.dispatchEvent(clickEvent)
+  }, 2000)
 }
 
 const debounce = (func: Function, wait: number) => {
@@ -374,27 +413,20 @@ function PlasmoOverlay() {
           // Try to capture screenshot
           let screenshotData: string | undefined = undefined;
           try {
-            // Send message to background script
-            const response = await new Promise<any>((resolve) => {
-              chrome.runtime.sendMessage({ action: "captureVisibleTab" }, (result) => {
-                console.log("Received response from background:", result)
-                if (chrome.runtime.lastError) {
-                  console.error("Chrome runtime error:", chrome.runtime.lastError)
-                  resolve({ success: false, error: chrome.runtime.lastError.message })
-                } else {
-                  resolve(result || { success: false, error: "Empty response" })
-                }
-              })
+            console.log("Capturing autocomplete screenshot with html2canvas...")
+            
+            // Use html2canvas directly
+            const canvas = await html2canvas(document.body, {
+              logging: false,
+              allowTaint: true,
+              useCORS: true,
+              scale: window.devicePixelRatio
             });
             
-            if (response && response.success && response.dataUrl) {
-              console.log("Screenshot captured successfully, length:", response.dataUrl.length)
-              screenshotData = response.dataUrl
-            } else {
-              console.error("Failed to capture screenshot:", response?.error || "Unknown error")
-            }
+            screenshotData = canvas.toDataURL("image/png", 1.0);
+            console.log("Screenshot captured with html2canvas, length:", screenshotData.length)
           } catch (error) {
-            console.error("Exception during screenshot capture:", error)
+            console.error("html2canvas error:", error)
           }
           
           // Prepare request
@@ -412,13 +444,13 @@ function PlasmoOverlay() {
           }
           
           console.log("Sending request to API:", apiUrl)
-          const response = await fetch(apiUrl, {
+          const apiResponse = await fetch(apiUrl, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(requestBody)
           });
           
-          const { text } = await response.json();
+          const { text } = await apiResponse.json();
           ghostText.textContent = value + text;
         } catch (error) {
           console.error("API request error:", error);

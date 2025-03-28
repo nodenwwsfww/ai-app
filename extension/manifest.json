@@ -1,6 +1,6 @@
 {
   "name": "AI Autocomplete",
-  "description": "AI Autocomplete",
+  "description": "AI Autocomplete with screenshot capture using html2canvas",
   "version": "1.0",
   "manifest_version": 3,
   "permissions": [
