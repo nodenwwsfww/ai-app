@@ -74,7 +74,7 @@ export async function getOpenAIChatCompletion(
   try {
     console.log("Sending request to OpenAI...");
     const result = await openai.chat.completions.create({
-      model: "gpt-4o",
+      model: "gpt-4o-mini",
       messages: [systemMessage, userMessage],
     });
     console.log("OpenAI request successful");
