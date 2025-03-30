@@ -13,7 +13,7 @@ interface CompleteRequest {
   screenshot?: string;
 }
 
-const DEFAULT_API_URL = "http://localhost:8080/complete"
+const API_URL = "http://localhost:8080/complete"
 
 export const config: PlasmoCSConfig = {
   matches: ["<all_urls>"],
@@ -117,7 +117,6 @@ const debounce = (func: Function, wait: number) => {
 }
 
 function FunctionHidden() {
-  const [apiUrl, setApiUrl] = useState(DEFAULT_API_URL)
   const [isFirstInput, setIsFirstInput] = useState(true)
 
   // Function to capture screenshot once
@@ -151,19 +150,8 @@ function FunctionHidden() {
   };
 
   useEffect(() => {
-    if (chrome?.storage?.local) {
-      chrome.storage.local.get("apiUrl", (result) => {
-        if (result.apiUrl) {
-          setApiUrl(result.apiUrl)
-        }
-        
-        // Inject ghost text styles
-        injectGhostTextStyles()
-      })
-    } else {
-      injectGhostTextStyles()
-    }
     
+    injectGhostTextStyles()
     // Track processed elements to avoid duplicating work
     const processed = new WeakSet<Element>()
     
@@ -241,7 +229,7 @@ function FunctionHidden() {
       observer.disconnect();
       resizeObserver.disconnect();
     };
-  }, [apiUrl]);
+  }, []);
   
   // Setup function for input elements
   const setupInputElement = (element: SupportedElement) => {
@@ -309,7 +297,7 @@ function FunctionHidden() {
             requestBody.screenshot = screenshot;
           }
           
-          const apiResponse = await fetch(apiUrl, {
+          const apiResponse = await fetch(API_URL, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(requestBody)
