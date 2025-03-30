@@ -5,39 +5,8 @@ const openai = new OpenAI({
   baseURL: process.env.OPENROUTER_API_BASE || "https://openrouter.ai/api/v1",
 });
 
-const model = process.env.OPENROUTER_MODEL || "google/gemini-flash-2.0";
+const model = process.env.OPENROUTER_MODEL || "google/gemini-2.0-flash-001";
 
-// Note: Keeping the getImageDescription function in case it's used elsewhere,
-// but it won't be called in the updated implementation
-async function getImageDescription(screenshot: string): Promise<string> {
-  console.log("Requesting image description from OpenAI...");
-  try {
-    const response = await openai.chat.completions.create({
-      model, // Use the same multimodal model
-      messages: [
-        {
-          role: "user",
-          content: [
-            { type: "text", text: "Describe this webpage screenshot concisely, focusing on the main content, text fields, or interactive elements visible. Aim for 1-2 sentences." },
-            {
-              type: "image_url",
-              image_url: {
-                url: screenshot,
-              },
-            },
-          ],
-        },
-      ],
-      max_tokens: 100, // Limit description length
-    });
-    const description = response.choices[0].message?.content?.trim() || "Could not generate description.";
-    console.log("Image description received:", description);
-    return description;
-  } catch (error) {
-    console.error("Error generating image description:", error);
-    return "Error generating image description.";
-  }
-}
 
 export async function getOpenRouterChatCompletion(
   existingText: string,
