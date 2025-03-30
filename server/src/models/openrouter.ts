@@ -5,8 +5,7 @@ const openai = new OpenAI({
   baseURL: process.env.OPENROUTER_API_BASE || "https://openrouter.ai/api/v1",
 });
 
-const model = process.env.OPENROUTER_MODEL || "google/gemini-2.0-flash-001";
-
+const model = process.env.OPENROUTER_MODEL || "google/gemini-2.0-flash-exp:free";
 
 export async function getOpenRouterChatCompletion(
   existingText: string,

@@ -195,198 +195,171 @@ function FunctionHidden() {
   useEffect(() => {
     injectGhostTextStyles()
     const processed = new WeakSet<Element>()
-
-    // Observer for element resizing
+    // Keep the resize observer, it will be used on demand
     const resizeObserver = new ResizeObserver(entries => {
       for (const entry of entries) {
         const element = entry.target as Element;
-        const ghostText = element.nextElementSibling as HTMLElement | null; // Type assertion
+        // Ghost text might not exist if accessed before setup, add checks
+        const ghostText = element.nextElementSibling as HTMLElement | null;
         if (ghostText?.classList.contains('ghost-text')) {
           copyStyles(element, ghostText); // Update styles on resize
         }
       }
     });
 
-    // Setup function for each supported input element
+    // Setup function for each supported input element (Called on demand now)
     const setupInputElement = (element: SupportedElement) => {
-      if (processed.has(element)) return; // Already processed
+      // No need to check processed here, the caller will do it.
+      processed.add(element); // Mark as processed
 
       const ghostText = document.createElement('div');
       ghostText.classList.add('ghost-text');
-      // Make it non-interactive for screen readers
       ghostText.setAttribute('aria-hidden', 'true');
 
 
       if (element.parentNode) {
-        // Insert ghost text after the element
         element.parentNode.insertBefore(ghostText, element.nextSibling);
         copyStyles(element, ghostText); // Initial style copy
-        processed.add(element);
-        resizeObserver.observe(element); // Observe for size changes
+        resizeObserver.observe(element); // Observe for size changes AFTER setup
 
         // Debounced API call function
         const debouncedGetSuggestion = debounce(async (value: string) => {
-          if (value.length === 0) {
-            ghostText.textContent = '';
-            return;
-          }
-          try {
-            const { screenshot } = await chrome.runtime.sendMessage({ type: 'GET_SCREENSHOT' });
-            const requestBody: CompleteRequest = { text: value, url: window.location.href };
-            if (screenshot) {
-              requestBody.screenshot = screenshot;
-            }
+           if (value.length === 0) {
+             ghostText.textContent = '';
+             return;
+           }
+           try {
+             // Simplified screenshot logic: capture on first *suggestion fetch* for this input?
+             // Or rely on the background script managing a single screenshot?
+             // Let's assume background script handles the "once" logic based on messages.
+             await captureScreenshotOnce(); // Attempt capture before fetch
 
-            const response = await fetch(API_URL, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(requestBody)
-            });
-            if (!response.ok) throw new Error(`API error: ${response.statusText}`);
-            const { text: suggestion } = await response.json();
-            // Only show suggestion if it adds something
-            if (suggestion && suggestion.length > 0) {
-                ghostText.textContent = value + suggestion;
-            } else {
-                ghostText.textContent = value; // Show current value if no suggestion
-            }
-            copyStyles(element, ghostText); // Update styles after getting suggestion
-          } catch (error) {
-            console.error("API request error:", error);
-            ghostText.textContent = value; // Show current value on error
-          }
-        }, 500); // 500ms debounce
+             const { screenshot } = await chrome.runtime.sendMessage({ type: 'GET_SCREENSHOT' });
+             const requestBody: CompleteRequest = { text: value, url: window.location.href };
+             if (screenshot) {
+               requestBody.screenshot = screenshot;
+             }
+
+             const response = await fetch(API_URL, {
+               method: 'POST',
+               headers: { 'Content-Type': 'application/json' },
+               body: JSON.stringify(requestBody)
+             });
+             if (!response.ok) throw new Error(`API error: ${response.statusText}`);
+             const { text: suggestion } = await response.json();
+             if (suggestion && suggestion.length > 0) {
+                 ghostText.textContent = value + suggestion;
+             } else {
+                 ghostText.textContent = value;
+             }
+             copyStyles(element, ghostText);
+           } catch (error) {
+             console.error("API request error:", error);
+             ghostText.textContent = value;
+           }
+         }, 500);
 
         // Event handler for input/changes
         const handleInput = async () => {
-          const value = getElementValue(element);
-          ghostText.textContent = value; // Immediately update ghost text to match input
-          copyStyles(element, ghostText); // Update styles on input
+           const value = getElementValue(element);
+           ghostText.textContent = value;
+           copyStyles(element, ghostText);
 
-          if (value.length > 0) {
-            if (isFirstInput) {
-              setIsFirstInput(false);
-              await captureScreenshotOnce(); // Capture screenshot on first input
-            }
-            debouncedGetSuggestion(value); // Trigger suggestion fetching
-          } else {
-            ghostText.textContent = ''; // Clear ghost text if input is empty
-          }
+           if (value.length > 0) {
+             // Removed isFirstInput state logic here, rely on captureScreenshotOnce internal check
+             debouncedGetSuggestion(value);
+           } else {
+             ghostText.textContent = '';
+           }
         };
 
-        // Throttled event handler for scroll events (Improved)
+        // Throttled event handler for scroll events
         const handleScroll = throttle(() => {
-          copyStyles(element, ghostText); // Update styles/scroll on scroll (throttled)
-        }, 100); // Throttle to run at most every 100ms
+           copyStyles(element, ghostText);
+        }, 100);
 
-        // Event handler for keydown events (Tab completion, Enter clearing)
+        // Event handler for keydown events
         const handleKeyDown = (e: KeyboardEvent) => {
-          const currentGhostText = ghostText.textContent || '';
-          const currentValue = getElementValue(element);
+           const currentGhostText = ghostText.textContent || '';
+           const currentValue = getElementValue(element);
 
-          // Tab completion: only if ghost text is longer than input value
-          if (e.key === 'Tab' && currentGhostText.length > currentValue.length && currentGhostText.startsWith(currentValue)) {
-            e.preventDefault();
-            setElementValue(element, currentGhostText);
-            // Trigger input event for frameworks/listeners
-            element.dispatchEvent(new Event('input', { bubbles: true }));
-            ghostText.textContent = ''; // Clear ghost text after completion
-          } else if (e.key === 'Enter' && !(element.tagName === 'TEXTAREA' && !e.ctrlKey && !e.metaKey)) {
-            // Clear ghost text on Enter (except for multiline textareas without Ctrl/Meta)
-            ghostText.textContent = '';
-          }
-          // Update styles after keydown potentially changes content/scroll
-          setTimeout(() => copyStyles(element, ghostText), 0);
+           if (e.key === 'Tab' && currentGhostText.length > currentValue.length && currentGhostText.startsWith(currentValue)) {
+             e.preventDefault();
+             setElementValue(element, currentGhostText);
+             element.dispatchEvent(new Event('input', { bubbles: true }));
+             ghostText.textContent = '';
+           } else if (e.key === 'Enter' && !(element.tagName === 'TEXTAREA' && !e.ctrlKey && !e.metaKey)) {
+             ghostText.textContent = '';
+           }
+           setTimeout(() => copyStyles(element, ghostText), 0);
         };
 
-        // Attach event listeners
+        // Attach event listeners specific to this element
         element.addEventListener('input', handleInput);
         element.addEventListener('scroll', handleScroll);
         element.addEventListener('keydown', handleKeyDown);
-        // For contenteditable, also listen to blur to catch changes
         if (element.getAttribute('contenteditable') === 'true') {
-          element.addEventListener('blur', handleInput);
+           element.addEventListener('blur', handleInput); // Or maybe blur should clear ghost text? Consider UX.
         }
-        // Update styles on window resize (Improved)
-        const throttledResizeHandler = throttle(() => copyStyles(element, ghostText), 100); // Throttle to run at most every 100ms
+        // Throttled window resize handler specific to this element
+        const throttledResizeHandler = throttle(() => copyStyles(element, ghostText), 100);
         window.addEventListener('resize', throttledResizeHandler);
+
+        // Store cleanup functions for *this specific element*
+        // This is complex to manage correctly if elements are dynamically removed.
+        // A simpler approach for now is relying on the main useEffect cleanup.
+        // We'd need a Map<Element, Function[]> to track listeners per element for precise cleanup on element removal.
+
 
       } else {
           console.warn("Element has no parentNode, cannot attach ghost text:", element);
       }
     };
 
-    // Initial processing of existing elements
-    document.querySelectorAll('textarea, input, [contenteditable="true"]').forEach(element => {
-        if(isSupportedElement(element)) {
-            setupInputElement(element as SupportedElement);
+    // --- NEW: Listener for initial interaction ---
+    const handleFocusIn = (event: FocusEvent) => {
+        const target = event.target;
+        if (target instanceof Element && isSupportedElement(target) && !processed.has(target)) {
+            console.log("Setting up element:", target); // Debug log
+            setupInputElement(target as SupportedElement);
         }
-    });
+    };
 
-    // Observer for dynamically added elements
-    const observer = new MutationObserver(mutations => {
-      mutations.forEach(mutation => {
-        mutation.addedNodes.forEach(node => {
-          if (node instanceof Element) { // Check if node is an Element
-            // Check the node itself
-            if (isSupportedElement(node)) {
-              setupInputElement(node as SupportedElement);
-            }
-            // Check descendants of the node
-            node.querySelectorAll('textarea, input, [contenteditable="true"]').forEach(childElement => {
-              if(isSupportedElement(childElement)) {
-                setupInputElement(childElement as SupportedElement);
-              }
-            });
-          }
-        });
-        // Handle changes to contenteditable attribute
-        if (mutation.type === 'attributes' && mutation.attributeName === 'contenteditable') {
-            const targetElement = mutation.target;
-            if (targetElement instanceof Element && isSupportedElement(targetElement)) {
-                setupInputElement(targetElement as SupportedElement);
-            }
-        }
-      });
-    });
+    document.addEventListener('focusin', handleFocusIn, true); // Use capture phase might be slightly better
 
-    observer.observe(document.body, {
-      childList: true,
-      subtree: true,
-      attributes: true,
-      attributeFilter: ['contenteditable'] // Watch for changes to contenteditable
-    });
+    // REMOVED: Initial processing of existing elements
+    // REMOVED: MutationObserver for dynamically added elements
 
-    // Clear ghost text when submit buttons are clicked
-    document.addEventListener('click', e => {
-      const target = e.target as Element;
-      if (target.tagName === 'BUTTON' || (target instanceof HTMLInputElement && target.type === 'submit')) {
-        document.querySelectorAll('.ghost-text').forEach(ghost => {
-          ghost.textContent = '';
-        });
-      }
-    }, true); // Use capture phase to potentially clear before form submission logic
+    // Clear ghost text when submit buttons are clicked (keep this global listener)
+    const handleSubmitClick = (e: MouseEvent) => {
+       const target = e.target as Element;
+       if (target.tagName === 'BUTTON' || (target instanceof HTMLInputElement && target.type === 'submit')) {
+         document.querySelectorAll('.ghost-text').forEach(ghost => {
+           ghost.textContent = '';
+         });
+       }
+    };
+    document.addEventListener('click', handleSubmitClick, true);
 
 
-    // Cleanup function (Improved slightly for clarity, but full listener removal needs more infrastructure)
+    // Cleanup function
     return () => {
-      observer.disconnect();
-      resizeObserver.disconnect();
-      // To properly remove listeners added in setupInputElement, we'd need to track them
-      // (e.g., in a Map<Element, Function>) and iterate/remove here.
-      // The current approach relies on the component unmount removing everything eventually.
-      // Removing the global click listener:
-      // This requires storing the listener function reference used in addEventListener.
-      // Example:
-      // const globalClickListener = e => { ... };
-      // document.addEventListener('click', globalClickListener, true);
-      // return () => { document.removeEventListener('click', globalClickListener, true); ... };
-      // For now, leaving the simplified global listener removal comment.
-       document.querySelectorAll('.ghost-text').forEach(el => el.remove()); // Remove ghost text elements
+      console.log("Cleaning up FunctionHidden listeners"); // Debug log
+      document.removeEventListener('focusin', handleFocusIn, true); // Remove focus listener
+      document.removeEventListener('click', handleSubmitClick, true); // Remove submit click listener
+      resizeObserver.disconnect(); // Disconnect resize observer
+
+      // Remove all ghost text elements added by any setupInputElement call
+      document.querySelectorAll('.ghost-text').forEach(el => el.remove());
+
+      // Note: Listeners added directly to elements (input, scroll, keydown) and window (resize)
+      // within setupInputElement are not explicitly removed here. If the component unmounts,
+      // they should be garbage collected. If elements are removed dynamically *before* unmount,
+      // listener removal would require more complex tracking (e.g., using a Map).
     };
   }, []); // Empty dependency array ensures this runs once on mount
 
-  return null; // This component doesn't render anything itself
+  return null;
 }
 
 export default FunctionHidden 
