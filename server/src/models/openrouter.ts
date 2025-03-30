@@ -1,10 +1,11 @@
 import OpenAI from "openai";
 
 const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
+  apiKey: process.env.OPENROUTER_API_KEY,
+  baseURL: process.env.OPENROUTER_API_BASE || "https://openrouter.ai/api/v1",
 });
 
-const model = "gpt-4o";
+const model = process.env.OPENROUTER_MODEL || "google/gemini-flash-2.0";
 
 // Note: Keeping the getImageDescription function in case it's used elsewhere,
 // but it won't be called in the updated implementation
@@ -12,7 +13,7 @@ async function getImageDescription(screenshot: string): Promise<string> {
   console.log("Requesting image description from OpenAI...");
   try {
     const response = await openai.chat.completions.create({
-      model: model, // Use the same multimodal model
+      model, // Use the same multimodal model
       messages: [
         {
           role: "user",
@@ -38,12 +39,12 @@ async function getImageDescription(screenshot: string): Promise<string> {
   }
 }
 
-export async function getOpenAIChatCompletion(
+export async function getOpenRouterChatCompletion(
   existingText: string,
   url: string,
   screenshot?: string
 ) {
-  console.log("Preparing OpenAI request with model: ", model);
+  console.log("Preparing OpenRouter request with model: ", model);
   
   const systemMessage = {
     role: "system",
@@ -92,15 +93,15 @@ export async function getOpenAIChatCompletion(
   }
 
   try {
-    console.log("Sending request to OpenAI...");
+    console.log("Sending request to OpenRouter...");
     const result = await openai.chat.completions.create({
       model: model,
       messages: [systemMessage, userMessage],
     });
-    console.log("OpenAI request successful");
+    console.log("OpenRouter request successful");
     return result;
   } catch (error) {
-    console.error("Error calling OpenAI API:", error);
+    console.error("Error calling OpenRouter API:", error);
     throw error;
   }
 }

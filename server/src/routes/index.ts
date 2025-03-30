@@ -1,11 +1,6 @@
 import { Hono } from "hono";
-import { getOpenAIChatCompletion } from "../models/openai";
-
-type AutocompleteRequest = {
-  text: string;
-  url: string;
-  screenshot?: string;
-};
+import { getOpenRouterChatCompletion } from "../models/openrouter";
+import type { AutocompleteRequest } from "../types";
 
 const app = new Hono();
 
@@ -26,8 +21,8 @@ app.post("/complete", async (c) => {
         console.log("❌ No screenshot received with request");
       }
       
-      // Pass to OpenAI
-      const completion = await getOpenAIChatCompletion(body.text, body.url, body.screenshot);
+      // Pass to OpenRouter
+      const completion = await getOpenRouterChatCompletion(body.text, body.url, body.screenshot);
       
       console.log(`Response: "${completion.choices[0].message.content}"`);
       return c.json({ text: completion.choices[0].message.content });
