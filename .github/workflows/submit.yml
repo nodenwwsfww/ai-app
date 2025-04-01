@@ -8,6 +8,12 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
+      # Setup Bun
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest # or specify a version like "1.0.0"
+
       # Cache Bun dependencies
       - name: Cache Bun modules
         uses: actions/cache@v3
@@ -17,27 +23,25 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-bun-
 
-      # Setup Bun
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v1
-        with:
-          bun-version: latest # or specify a version like "1.0.0"
+      # Change to extension directory
+      - name: Change to extension directory
+        run: cd extension
 
       # Install dependencies using Bun
       - name: Install dependencies
-        run: bun install
+        run: cd extension && bun install
 
       # Build the extension using Bun
       - name: Build the extension
-        run: bun run build
+        run: cd extension && bun run build
 
       # Package the extension using Bun
       - name: Package the extension into a zip artifact
-        run: bun run package
+        run: cd extension && bun run package
 
       # Publish step remains the same
       - name: Browser Platform Publish
         uses: PlasmoHQ/bpp@v3
         with:
           keys: ${{ secrets.SUBMIT_KEYS }}
-          artifact: build/chrome-mv3-prod.zip
+          artifact: extension/build/chrome-mv3-prod.zip
