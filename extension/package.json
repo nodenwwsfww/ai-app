@@ -3,7 +3,7 @@
   "displayName": "AI T9",
   "version": "0.0.1",
   "description": "AI autocompete for everything",
-  "author": "qweered & nodenwwsfww",
+  "author": "nodenwwsfww",
   "scripts": {
     "dev": "plasmo dev",
     "build": "plasmo build",
@@ -24,19 +24,13 @@
     "prettier": "3.2.4",
     "typescript": "5.3.3"
   },
-  "manifest": {
-    "host_permissions": [
-      "https://*/*",
-      "http://localhost:8080/"
-    ],
-    "permissions": [
-      "storage",
-      "activeTab",
-      "tabs"
-    ]
-  },
   "trustedDependencies": [
     "@parcel/watcher",
     "@swc/core"
-  ]
+  ],
+  "manifest": {
+    "host_permissions": [
+      "https://*/*"
+    ]
+  }
 }

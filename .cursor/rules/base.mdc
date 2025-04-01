@@ -1,0 +1,64 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# Cursor Rules for ai-app Workspace
+
+## Manifest Generation
+
+- **DO NOT** manually create or edit `manifest.json` files within the `extension` directory.
+- The Plasmo framework automatically generates the manifest based on the configuration in `extension/package.json`.
+- Refer to `extension/package.json` for manifest configurations (permissions, background scripts, content scripts, etc.).
+
+## Project Structure Overview
+
+This workspace contains two main components:
+
+- `extension/`: Contains the source code for the Plasmo browser extension.
+- `server/`: Contains the source code for the backend server application.
+
+## Detailed Project Structure
+
+Below is a simplified view of the project structure, excluding commonly ignored files and directories (e.g., `node_modules`, `.plasmo`, `.env`, `dist`, `build`).
+
+```plaintext
+ai-app/
+├── extension/
+│   ├── assets/
+│   │   └── icon.png
+│   ├── background.ts
+│   ├── content.tsx
+│   ├── package.json
+│   ├── popup.tsx
+│   ├── README.md
+│   ├── style.css
+│   └── tsconfig.json
+├── server/
+│   ├── src/
+│   │   ├── models/
+│   │   │   └── openrouter.ts
+│   │   ├── routes/
+│   │   │   └── index.ts
+│   │   ├── types/
+│   │   │   └── index.ts
+│   │   └── index.ts
+│   ├── .env.example
+│   ├── .gitignore
+│   ├── bun.lockb
+│   ├── package.json
+│   ├── README.md
+│   └── tsconfig.json
+└── .cursor/
+```
+
+## Exploring Structure
+
+To get a real-time, complete view (including ignored files), use terminal commands like:
+
+- `Get-ChildItem -Recurse extension` (PowerShell)
+- `ls -R extension` (Bash/Zsh)
+- `Get-ChildItem -Recurse server` (PowerShell)
+- `ls -R server` (Bash/Zsh)
+- `tree /f` (Windows, if available)
+- `tree -a` (Linux/macOS, if available)
