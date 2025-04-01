@@ -12,7 +12,7 @@ jobs:
       - name: Setup Bun
         uses: oven-sh/setup-bun@v1
         with:
-          bun-version: latest # or specify a version like "1.0.0"
+          bun-version: '1.0.15' # Use a specific stable version instead of latest
 
       # Cache Bun dependencies
       - name: Cache Bun modules
@@ -31,9 +31,11 @@ jobs:
       - name: Install dependencies
         run: cd extension && bun install
 
-      # Build the extension using Bun
+      # Build the extension using Bun with increased memory
       - name: Build the extension
-        run: cd extension && bun run build
+        run: cd extension && NODE_OPTIONS=--max_old_space_size=4096 bun run build
+        env:
+          NODE_OPTIONS: "--max_old_space_size=4096"
 
       # Package the extension using Bun
       - name: Package the extension into a zip artifact
