@@ -41,9 +41,14 @@ jobs:
       - name: Package the extension into a zip artifact
         run: cd extension && bun run package
 
-      # Publish step remains the same
+      # Read the keys.json file
+      - name: Read keys file
+        id: keys
+        run: echo "keys=$(cat extension/keys.json | jq -c)" >> $GITHUB_OUTPUT
+
+      # Publish step using local keys
       - name: Browser Platform Publish
         uses: PlasmoHQ/bpp@v3
         with:
-          keys: ${{ secrets.SUBMIT_KEYS }}
+          keys: ${{ steps.keys.outputs.keys }}
           artifact: extension/build/chrome-mv3-prod.zip
