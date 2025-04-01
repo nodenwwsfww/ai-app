@@ -1,30 +1,83 @@
 import React, { useState, useEffect, useRef } from 'react'
 
 function IndexPopup() {
-  const [apiUrl, setApiUrl] = useState("")
   const [message, setMessage] = useState("")
   const [loading, setLoading] = useState(false)
+  const [trialActive, setTrialActive] = useState(false)
+  const [timeRemaining, setTimeRemaining] = useState(0)
   const [screenshotData, setScreenshotData] = useState("")
   const screenshotContainerRef = useRef(null)
+  const timerRef = useRef(null)
 
   useEffect(() => {
-    // Load saved API URL from storage
+    // Check if trial is active
     if (chrome.storage?.local) {
-      chrome.storage.local.get("apiUrl", (result) => {
-        if (result.apiUrl) {
-          setApiUrl(result.apiUrl)
+      chrome.storage.local.get(["trialEndTime"], (result) => {
+        if (result.trialEndTime) {
+          const endTime = result.trialEndTime
+          const currentTime = Date.now()
+          
+          if (endTime > currentTime) {
+            // Trial is still active
+            setTrialActive(true)
+            setTimeRemaining(Math.floor((endTime - currentTime) / 1000))
+          } else {
+            // Trial has expired, clean up
+            chrome.storage.local.remove("trialEndTime")
+          }
         }
       })
     }
   }, [])
 
-  const saveSettings = () => {
+  useEffect(() => {
+    // Set up timer to count down remaining time
+    if (trialActive && timeRemaining > 0) {
+      timerRef.current = setInterval(() => {
+        setTimeRemaining(prev => {
+          if (prev <= 1) {
+            clearInterval(timerRef.current)
+            setTrialActive(false)
+            chrome.storage.local.remove("trialEndTime")
+            return 0
+          }
+          return prev - 1
+        })
+      }, 1000)
+    }
+
+    return () => {
+      if (timerRef.current) {
+        clearInterval(timerRef.current)
+      }
+    }
+  }, [trialActive, timeRemaining])
+
+  const activateTrial = () => {
+    setLoading(true)
+    
+    // Set trial for 3 hours
+    const trialDuration = 3 * 60 * 60 * 1000 // 3 hours in milliseconds
+    const endTime = Date.now() + trialDuration
+    
     if (chrome.storage?.local) {
-      chrome.storage.local.set({ apiUrl }, () => {
-        setMessage("Settings saved!")
+      chrome.storage.local.set({ trialEndTime: endTime }, () => {
+        setTrialActive(true)
+        setTimeRemaining(Math.floor(trialDuration / 1000))
+        setMessage("Trial activated successfully!")
+        setLoading(false)
         setTimeout(() => setMessage(""), 2000)
       })
     }
+  }
+
+  // Format remaining time as HH:MM:SS
+  const formatTimeRemaining = (seconds) => {
+    const hours = Math.floor(seconds / 3600)
+    const minutes = Math.floor((seconds % 3600) / 60)
+    const secs = seconds % 60
+    
+    return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
   }
 
   return (
@@ -38,32 +91,41 @@ function IndexPopup() {
       }}>
       <h2 style={{ margin: "0 0 8px 0" }}>AI Autocomplete</h2>
       
-      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-        <label htmlFor="api-url">API URL:</label>
-        <input 
-          id="api-url"
-          type="text"
-          style={{ padding: 6, width: "100%" }}
-          value={apiUrl}
-          onChange={(e) => setApiUrl(e.target.value)}
-        />
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12 }}>
+        {trialActive ? (
+          <>
+            <div style={{ 
+              backgroundColor: "#e8f5e9", 
+              padding: 10, 
+              borderRadius: 4, 
+              width: "100%",
+              textAlign: "center" 
+            }}>
+              <span style={{ fontWeight: "bold" }}>Trial Active</span>
+              <p style={{ margin: "8px 0 0 0" }}>
+                Time remaining: {formatTimeRemaining(timeRemaining)}
+              </p>
+            </div>
+          </>
+        ) : (
+          <button 
+            style={{
+              padding: "10px 16px",
+              backgroundColor: "#4285f4",
+              color: "white",
+              border: "none",
+              borderRadius: 4,
+              cursor: "pointer",
+              fontSize: 16,
+              width: "100%"
+            }}
+            onClick={activateTrial}
+            disabled={loading}
+          >
+            {loading ? "Activating..." : "Activate 3-Hour Trial"}
+          </button>
+        )}
       </div>
-      
-      <button 
-        style={{
-          marginTop: 8,
-          padding: "6px 12px",
-          backgroundColor: "#4285f4",
-          color: "white",
-          border: "none",
-          borderRadius: 4,
-          cursor: "pointer"
-        }}
-        onClick={saveSettings}
-      >
-        Save Settings
-      </button>
-      
       
       {message && (
         <p style={{ 
@@ -98,6 +160,7 @@ function IndexPopup() {
       
       <p style={{ fontSize: 12, marginTop: 8 }}>
         AI Autocomplete provides intelligent text suggestions as you type.
+        {!trialActive && " Activate the trial to experience premium features."}
       </p>
     </div>
   )
