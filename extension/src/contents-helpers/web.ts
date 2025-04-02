@@ -1,3 +1,4 @@
+import html2canvas from "html2canvas";
 import type { SupportedElement } from "../types"; // Assuming types are in src/types
 
 // Add styles for ghost text
@@ -137,5 +138,28 @@ export const throttle = <T extends (...args: any[]) => void>(func: T, limit: num
       func(...args);
     }
   }) as T;
+};
+
+// Function to capture screenshot once
+export const captureScreenshotOnce = async (chrome: typeof window.chrome) => {
+  try {
+    const { hasScreenshot } = await chrome.runtime.sendMessage({ type: 'HAS_SCREENSHOT' });
+    if (hasScreenshot) return;
+
+    const canvas = await html2canvas(document.body, {
+      logging: false,
+      allowTaint: true,
+      useCORS: true,
+      scale: window.devicePixelRatio
+    });
+    const screenshotData = canvas.toDataURL("image/png", 1.0);
+
+    await chrome.runtime.sendMessage({
+      type: 'STORE_SCREENSHOT',
+      screenshot: screenshotData
+    });
+  } catch (error) {
+    console.error("Screenshot capture error:", error); // Use console.error for errors
+  }
 };
 
