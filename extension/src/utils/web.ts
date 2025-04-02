@@ -1,5 +1,4 @@
-import html2canvas from "html2canvas";
-import type { SupportedElement } from "../types";
+import type { SupportedElement } from "../types"; // Assuming types are in src/types
 
 // Add styles for ghost text
 export const injectGhostTextStyles = () => {
@@ -118,7 +117,7 @@ export const copyStyles = (source: Element, target: HTMLElement) => {
 
 // Debounce function
 export const debounce = <T extends (...args: any[]) => void>(func: T, wait: number): T => {
-  let timeout: NodeJS.Timeout | null = null;
+  let timeout: any = null;
   return ((...args: Parameters<T>) => {
     if (timeout) clearTimeout(timeout);
     timeout = setTimeout(() => {
@@ -138,30 +137,5 @@ export const throttle = <T extends (...args: any[]) => void>(func: T, limit: num
       func(...args);
     }
   }) as T;
-};
-
-// Function to capture screenshot once
-export const captureScreenshotOnce = async (chrome: typeof window.chrome) => {
-  try {
-    console.log('captureScreenshotOnce');
-    const { hasScreenshot } = await chrome.runtime.sendMessage({ type: 'HAS_SCREENSHOT' });
-    if (hasScreenshot) return;
-    console.log('doesnt have screensho on URL', window.location.href);
-
-    const canvas = await html2canvas(document.body, {
-      logging: false,
-      allowTaint: true,
-      useCORS: true,
-      scale: window.devicePixelRatio
-    });
-    const screenshotData = canvas.toDataURL("image/png", 1.0);
-
-    await chrome.runtime.sendMessage({
-      type: 'STORE_SCREENSHOT',
-      screenshot: screenshotData
-    });
-  } catch (error) {
-    console.error("Screenshot capture error:", error); // Use console.error for errors
-  }
 };
 
