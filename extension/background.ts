@@ -5,6 +5,16 @@ interface TabScreenshot {
 
 const tabScreenshots = new Map<number, TabScreenshot>();
 
+// Listen for when the extension is installed
+chrome.runtime.onInstalled.addListener((details) => {
+  if (details.reason === "install") {
+    // Open the welcome page when the extension is first installed
+    chrome.tabs.create({
+      url: chrome.runtime.getURL("tabs/welcome.html")
+    });
+  }
+});
+
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (!sender.tab?.id) return;
 
