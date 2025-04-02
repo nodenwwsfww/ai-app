@@ -1,30 +1,13 @@
-import cssText from "data-text:./style.css"
-import type { PlasmoCSConfig } from "plasmo"
 import { useEffect, useState } from "react"
 import html2canvas from "html2canvas"
-
-// Define types for input elements that we'll support
-type SupportedElement = HTMLInputElement | HTMLTextAreaElement | Element;
-
-// Updated request type to include screenshot
-interface CompleteRequest {
-  text: string;
-  url: string;
-  screenshot?: string;
-}
-
-const API_URL = "http://localhost:8080/complete"
+import type { PlasmoCSConfig } from "plasmo"
+import type { SupportedElement, CompleteRequest } from "../types"
 
 export const config: PlasmoCSConfig = {
-  matches: ["<all_urls>"],
-  all_frames: true
+    matches: ["<all_urls>"],
+    all_frames: true
 }
 
-export const getStyle = () => {
-  const style = document.createElement("style")
-  style.textContent = cssText
-  return style
-}
 
 // Add styles for ghost text
 const injectGhostTextStyles = () => {
@@ -237,7 +220,7 @@ function FunctionHidden() {
               requestBody.screenshot = screenshot;
             }
 
-            const response = await fetch(API_URL, {
+            const response = await fetch(process.env.PLASMO_PUBLIC_API_URL, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify(requestBody)
