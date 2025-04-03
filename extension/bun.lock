@@ -4,6 +4,7 @@
     "": {
       "name": "extension",
       "dependencies": {
+        "@plasmohq/messaging": "^0.7.1",
         "html2canvas": "^1.4.1",
         "plasmo": "0.90.3",
         "react": "18.2.0",
@@ -372,6 +373,8 @@
     "@plasmohq/consolidate": ["@plasmohq/consolidate@0.17.0", "", { "dependencies": { "bluebird": "^3.7.2" }, "peerDependencies": { "arc-templates": "^0.5.3", "atpl": ">=0.7.6", "babel-core": "^6.26.3", "bracket-template": "^1.1.5", "coffeescript": "^2.7.0", "dot": "^1.1.3", "eco": "^1.1.0-rc-3", "ect": "^0.5.9", "ejs": "^3.1.5", "haml-coffee": "^1.14.1", "hamlet": "^0.3.3", "hamljs": "^0.6.2", "handlebars": "^4.7.6", "hogan.js": "^3.0.2", "htmling": "^0.0.8", "jazz": "^0.0.18", "jqtpl": "~1.1.0", "just": "^0.1.8", "liquid": "^5.1.1", "liquor": "^0.0.5", "lodash": "^4.17.20", "marko": "^3.14.4", "mote": "^0.2.0", "mustache": "^4.0.1", "nunjucks": "^3.2.2", "plates": "~0.4.11", "pug": "^3.0.0", "qejs": "^3.0.5", "ractive": "^1.3.12", "razor-tmpl": "^1.3.1", "react": "^18.2.0", "react-dom": "^18.2.0", "slm": "^2.0.0", "squirrelly": "^5.1.0", "teacup": "^2.0.0", "templayed": ">=0.2.3", "then-pug": "*", "tinyliquid": "^0.2.34", "toffee": "^0.3.6", "twig": "^1.15.2", "twing": "^5.0.2", "underscore": "^1.11.0", "vash": "^0.13.0", "velocityjs": "^2.0.1", "walrus": "^0.10.1", "whiskers": "^0.4.0" }, "optionalPeers": ["arc-templates", "atpl", "babel-core", "bracket-template", "coffeescript", "dot", "eco", "ect", "ejs", "haml-coffee", "hamlet", "hamljs", "handlebars", "hogan.js", "htmling", "jazz", "jqtpl", "just", "liquid", "liquor", "lodash", "marko", "mote", "mustache", "nunjucks", "plates", "pug", "qejs", "ractive", "razor-tmpl", "react", "react-dom", "slm", "squirrelly", "teacup", "templayed", "then-pug", "tinyliquid", "toffee", "twig", "twing", "underscore", "vash", "velocityjs", "walrus", "whiskers"] }, "sha512-Na8imBnvzYPtzkK+9Uv9hPZ/oJti/0jgiQWD222SHxHw2QCVuR4KzslxXCy/rS8gGluSiTs1BGVvc3d2O6aJCA=="],
 
     "@plasmohq/init": ["@plasmohq/init@0.7.0", "", {}, "sha512-P75g48dqOGneJ+n0AcqnLE/TYflcaPc3B7h6EopnCBBYUDnCNBMwYmKAkaf5pnhsEB0ybPS6TU1C2DTGfqaW7A=="],
+
+    "@plasmohq/messaging": ["@plasmohq/messaging@0.7.1", "", { "dependencies": { "nanoid": "5.0.3" }, "peerDependencies": { "react": "^16.8.6 || ^17 || ^18 || ^19.0.0" }, "optionalPeers": ["react"] }, "sha512-oKTrEO+Qhm/hgUKoiz17dspt2Vwf0O0JN5sUT3WjwEhL6uK7NdSawBl8eELK4qvm7pFSvNcJXiiuHYAvtPKaWg=="],
 
     "@plasmohq/parcel-bundler": ["@plasmohq/parcel-bundler@0.5.6", "", { "dependencies": { "@parcel/core": "2.9.3", "@parcel/diagnostic": "2.9.3", "@parcel/graph": "2.9.3", "@parcel/hash": "2.9.3", "@parcel/plugin": "2.9.3", "@parcel/utils": "2.9.3", "nullthrows": "1.1.1" } }, "sha512-kjwj5tQUhdAK00AxXOzgqJ2jryZg4X6aleYAcjbREPzVMqKEu1NrNSNy5VGAfNRG6NCT6ZYg39ZCyuUOR2lEsQ=="],
 
@@ -877,7 +880,7 @@
 
     "mz": ["mz@2.7.0", "", { "dependencies": { "any-promise": "^1.0.0", "object-assign": "^4.0.1", "thenify-all": "^1.0.0" } }, "sha512-z81GNO7nnYMEhrGh9LeymoE4+Yr0Wn5McHIZMK5cfQCl+NDX08sCZgUc9/6MHni9IWuFLm1Z3HTCXu2z9fN62Q=="],
 
-    "nanoid": ["nanoid@3.3.7", "", { "bin": "bin/nanoid.cjs" }, "sha512-eSRppjcPIatRIMC1U6UngP8XFcz8MQWGQdt1MTBQ7NaAmvXDfvNxbvWV3x2y6CdEUciCSsDHDQZbhYaB8QEo2g=="],
+    "nanoid": ["nanoid@5.0.3", "", { "bin": { "nanoid": "bin/nanoid.js" } }, "sha512-I7X2b22cxA4LIHXPSqbBCEQSL+1wv8TuoefejsX4HFWyC6jc5JG7CEaxOltiKjc1M+YCS2YkrZZcj4+dytw9GA=="],
 
     "needle": ["needle@3.3.1", "", { "dependencies": { "iconv-lite": "^0.6.3", "sax": "^1.2.4" }, "bin": { "needle": "bin/needle" } }, "sha512-6k0YULvhpw+RoLNiQCRKOl09Rv1dPLr8hHnVjHqdolKwDrdNyk+Hmrthi4lIGPPz3r39dLx0hsF5s40sZ3Us4Q=="],
 
@@ -1222,6 +1225,8 @@
     "plasmo/semver": ["semver@7.5.4", "", { "dependencies": { "lru-cache": "^6.0.0" }, "bin": { "semver": "bin/semver.js" } }, "sha512-1bCSESV6Pv+i21Hvpxp3Dx+pSD8lIPt8uVjRrxAUt/nbswYc+tK6Y2btiULjd4+fnq15PX+nqQDC7Oft7WkwcA=="],
 
     "plasmo/typescript": ["typescript@5.2.2", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-mI4WrpHsbCIcwT9cF4FZvr80QUeKvsUsUvKDoR+X/7XHQH98xYD8YHZg7ANtz2GtZt/CBq2QJ0thkGJMHfqc1w=="],
+
+    "postcss/nanoid": ["nanoid@3.3.7", "", { "bin": "bin/nanoid.cjs" }, "sha512-eSRppjcPIatRIMC1U6UngP8XFcz8MQWGQdt1MTBQ7NaAmvXDfvNxbvWV3x2y6CdEUciCSsDHDQZbhYaB8QEo2g=="],
 
     "postcss-load-config/yaml": ["yaml@2.4.2", "", { "bin": "bin.mjs" }, "sha512-B3VqDZ+JAg1nZpaEmWtTXUlBneoGx6CPM9b0TENK6aoSu5t73dItudwdgmi6tHlIZZId4dZ9skcAQ2UbcyAeVA=="],
 
