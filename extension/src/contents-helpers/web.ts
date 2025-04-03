@@ -1,14 +1,5 @@
 import html2canvas from "html2canvas";
 import type { SupportedElement } from "../types";
-import { sendToBackground } from "@plasmohq/messaging";
-import type {
-  RequestBody as HasScreenshotRequestBody,
-  ResponseBody as HasScreenshotResponseBody
-} from "../../background/messages/has_screenshot";
-import type {
-  RequestBody as StoreScreenshotRequestBody,
-  ResponseBody as StoreScreenshotResponseBody
-} from "../../background/messages/store_screenshot";
 
 // Add styles for ghost text
 export const injectGhostTextStyles = () => {
@@ -153,9 +144,7 @@ export const throttle = <T extends (...args: any[]) => void>(func: T, limit: num
 export const captureScreenshotOnce = async (chrome: typeof window.chrome) => {
   try {
     console.log('captureScreenshotOnce');
-    // Use sendToBackground for HAS_SCREENSHOT
-    const { hasScreenshot } = await sendToBackground<HasScreenshotRequestBody, HasScreenshotResponseBody>({ name: 'has_screenshot' });
-
+    const { hasScreenshot } = await chrome.runtime.sendMessage({ type: 'HAS_SCREENSHOT' });
     if (hasScreenshot) return;
     console.log('doesnt have screensho on URL', window.location.href);
 
@@ -167,14 +156,12 @@ export const captureScreenshotOnce = async (chrome: typeof window.chrome) => {
     });
     const screenshotData = canvas.toDataURL("image/png", 1.0);
 
-    // Use sendToBackground for STORE_SCREENSHOT
-    await sendToBackground<StoreScreenshotRequestBody, StoreScreenshotResponseBody>({
-      name: 'store_screenshot',
-      body: { screenshot: screenshotData }
+    await chrome.runtime.sendMessage({
+      type: 'STORE_SCREENSHOT',
+      screenshot: screenshotData
     });
-
   } catch (error) {
-    console.error("Screenshot capture error:", error);
+    console.error("Screenshot capture error:", error); // Use console.error for errors
   }
 };
 
