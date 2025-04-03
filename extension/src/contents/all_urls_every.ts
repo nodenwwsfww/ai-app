@@ -1,6 +1,8 @@
 import type { PlasmoCSConfig } from "plasmo"
 import { captureScreenshotOnce, copyStyles, debounce, getElementValue, injectGhostTextStyles, isSupportedElement, setElementValue, throttle } from "~contents-helpers/web"
 import type { CompleteRequest, SupportedElement } from "~types"
+import { sendToBackground } from "@plasmohq/messaging";
+import type { RequestBody as GetScreenshotRequestBody, ResponseBody as GetScreenshotResponseBody } from "../../background/messages/get_screenshot";
 
 export const config: PlasmoCSConfig = {
     matches: ["<all_urls>"],
@@ -45,7 +47,10 @@ const init = () => {
             return;
           }
           try {
-            const { screenshot } = await chrome.runtime.sendMessage({ type: 'GET_SCREENSHOT' });
+            // Use sendToBackground for GET_SCREENSHOT
+            const { screenshot } = await sendToBackground<GetScreenshotRequestBody, GetScreenshotResponseBody>({
+              name: 'get_screenshot',
+            });
             const requestBody: CompleteRequest = { text: value, url: window.location.href };
             if (screenshot) {
               requestBody.screenshot = screenshot;
