@@ -33,8 +33,6 @@ const init = () => {
   const setupInputElement = (element: SupportedElement) => {
     if (processed.has(element)) return; // Already processed
 
-    let isCompletingViaTab = false;
-
     const ghostText = document.createElement('div');
     ghostText.classList.add('ghost-text');
     // Make it non-interactive for screen readers
@@ -102,31 +100,19 @@ const init = () => {
 
       // Event handler for keydown events (Tab completion, Enter clearing)
       const handleKeyDown = (e: KeyboardEvent) => {
-        const fullSuggestion = ghostText.dataset.fullSuggestion || ""; // Get full suggestion
+        const currentGhostText = ghostText.textContent || '';
         const currentValue = getElementValue(element);
 
-        // Tab completion: use fullSuggestion from dataset
-        if (e.key === 'Tab' && fullSuggestion.length >= currentValue.length && fullSuggestion.startsWith(currentValue)) {
-          // Allow completion even if lengths are equal (e.g., API confirmed the typed word)
+        // Tab completion: only if ghost text is longer than input value
+        if (e.key === 'Tab' && currentGhostText.length > currentValue.length && currentGhostText.startsWith(currentValue)) {
           e.preventDefault();
-          isCompletingViaTab = true; // Set flag before dispatching event
-
-          console.log(`@handleKeyDown: Intending to set value to: "${fullSuggestion}"`);
-          setElementValue(element, fullSuggestion); // Use fullSuggestion here
-          console.log(`@handleKeyDown: Value immediately after setElementValue: "${getElementValue(element)}"`);
-
-          // Trigger input event for frameworks/listeners, but slightly delayed
-          setTimeout(() => {
-              console.log(`@handleKeyDown (setTimeout): Value just before dispatchEvent: "${getElementValue(element)}"`);
-              element.dispatchEvent(new Event('input', { bubbles: true }));
-              console.log(`@handleKeyDown (setTimeout): Value just after dispatchEvent: "${getElementValue(element)}"`);
-          }, 0);
+          setElementValue(element, currentGhostText);
+          // Trigger input event for frameworks/listeners
+          element.dispatchEvent(new Event('input', { bubbles: true }));
           ghostText.textContent = ''; // Clear ghost text after completion
-          ghostText.dataset.fullSuggestion = ""; // Clear stored suggestion
         } else if (e.key === 'Enter' && !(element.tagName === 'TEXTAREA' && !e.ctrlKey && !e.metaKey)) {
           // Clear ghost text on Enter (except for multiline textareas without Ctrl/Meta)
           ghostText.textContent = '';
-          ghostText.dataset.fullSuggestion = ""; // Also clear stored suggestion on Enter
         }
         // Update styles after keydown potentially changes content/scroll
         setTimeout(() => copyStyles(element, ghostText), 0);
