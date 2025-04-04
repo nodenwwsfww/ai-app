@@ -100,11 +100,18 @@ const init = () => {
           })
           if (!response.ok) throw new Error(`API error: ${response.statusText}`)
           const { text: suggestion } = await response.json()
-          // Only show suggestion if it adds something
-          if (suggestion && suggestion.length > 0) {
-            ghostText.textContent = value + suggestion
+          
+          // Check for model refusal or empty suggestion
+          const noSuggestion = !suggestion || suggestion.length === 0 || suggestion === '[No plausible continuation]'; 
+
+          // Only show suggestion if it adds something and is not a refusal
+          if (!noSuggestion) { 
+              // Ensure suggestion doesn't just repeat the value (adjust logic if needed)
+              // Current logic relies on server prompt to not repeat.
+              // We add the suggestion (server should handle leading space based on context)
+              ghostText.textContent = value + suggestion; 
           } else {
-            ghostText.textContent = value // Show current value if no suggestion
+              ghostText.textContent = value; // Show current value if no valid suggestion
           }
           copyStyles(element, ghostText) // Update styles after getting suggestion
         } catch (error) {

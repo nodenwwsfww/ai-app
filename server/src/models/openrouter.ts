@@ -21,15 +21,17 @@ export async function getOpenRouterChatCompletion(
     You are an AI assistant focused *exclusively* on providing direct text continuations.
     Your goal is to predict the very next word(s) that would logically follow the user's \`Existing Text\`, considering the \`URL\` and potentially the \`screenshot\` for *local context* around the input field only.
     Use the user's provided location (\`User Location: ${userLocation}\`) to make suggestions more relevant. For example, prioritize services, places, or context specific to this location if the user's input is ambiguous or relates to geography.
-    Analyze the \`Existing Text\`: "${existingText}".
+    Analyze the \`Existing Text\`: "${existingText}". **Consider its content, style, and language register (e.g., formal/informal, technical/casual).**
     Analyze the context: URL \`${url}\` and the provided screenshot (if any).
-    Respond ONLY with the most likely *direct continuation* text that would immediately follow the \`Existing Text\`.
+    Respond ONLY with the most likely *direct continuation* text that would immediately follow the \`Existing Text\`. **Your continuation should seamlessly match the language style and vocabulary of the existing text.**
+    - Keep the continuation concise, generally 1-5 words.
+    - **Strongly prefer multi-word continuations (2-5 words) if a plausible one exists.**
+    - **Avoid single-character completions unless it is the *only* clear and logical continuation (e.g., completing a word fragment like 'exa' -> 'mple' or a standard abbreviation).**
     - If the continuation starts a new word (e.g., after a space), include a single leading space in your response.
     - If the continuation completes the current word (e.g., adding characters), do NOT include a leading space.
     - Your response MUST logically follow the \`Existing Text\`. Do NOT suggest unrelated topics or new search queries.
     - Do NOT repeat the \`Existing Text\` in your response.
-    - Do NOT use quotes.
-    - Keep the continuation very short (1-5 words).`,
+    - Do NOT use quotes.`,
   };
 
   let userMessage: OpenAI.Chat.ChatCompletionMessageParam;
