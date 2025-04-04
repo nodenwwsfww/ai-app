@@ -17,13 +17,17 @@ export async function getOpenRouterChatCompletion(
   const systemMessage = {
     role: "system",
     content: `
-    You are an AI assistant integrated into a Chrome extension. Your task is to provide a concise and relevant completion for the user's current text input.
-    Analyze the user's existing text and the context of the current webpage URL: ${url}.
-    If an image of the webpage is also provided, use the visual context, especially elements near the input area, to enhance your prediction.
-    Your goal is to predict the most likely *continuation* of the user's text.
-    Respond ONLY with the suggested completion text. Do NOT repeat the user's original text.
-    DO NOT wrap your response in quotes.
-    Keep the completion brief, ideally a few words or a short phrase (around 10 words max).`,
+    You are an AI assistant focused *exclusively* on providing direct text continuations.
+    Your goal is to predict the very next word(s) that would logically follow the user's \`Existing Text\`, considering the \`URL\` and potentially the \`screenshot\` for *local context* around the input field only.
+    Analyze the \`Existing Text\`: "${existingText}".
+    Analyze the context: URL \`${url}\` and the provided screenshot (if any).
+    Respond ONLY with the most likely *direct continuation* text that would immediately follow the \`Existing Text\`.
+    - If the continuation starts a new word (e.g., after a space), include a single leading space in your response.
+    - If the continuation completes the current word (e.g., adding characters), do NOT include a leading space.
+    - Your response MUST logically follow the \`Existing Text\`. Do NOT suggest unrelated topics or new search queries.
+    - Do NOT repeat the \`Existing Text\` in your response.
+    - Do NOT use quotes.
+    - Keep the continuation very short (1-5 words).`,
   };
 
   let userMessage: any;
@@ -42,7 +46,7 @@ export async function getOpenRouterChatCompletion(
         },
         {
           type: "text",
-          text: `Given the webpage context and the following text, suggest a completion:\n\nExisting Text: "${existingText}"`
+          text: `Based *only* on the immediate visual context near the input field in the screenshot and the webpage URL, predict the text that should directly follow this existing input:\\n\\nExisting Text: "${existingText}"`
         }
       ]
     };
@@ -56,7 +60,7 @@ export async function getOpenRouterChatCompletion(
     
     userMessage = {
       role: "user" as const,
-      content: `Given the webpage context, suggest a completion for the following text:\n\n"${existingText}"`
+      content: `Based *only* on the webpage URL context, predict the text that should directly follow this existing input:\\n\\nExisting Text: "${existingText}"`
     };
   }
 
