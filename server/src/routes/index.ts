@@ -1,7 +1,17 @@
 import { Hono } from "hono";
 import { z } from "zod";
+import OpenAI from 'openai';
 import { getOpenRouterChatCompletion } from "../models/openrouter";
 import { AutocompleteRequestSchema } from "../schemas";
+
+// Create OpenAI client instance once
+const openai = new OpenAI({
+  apiKey: process.env.OPENROUTER_API_KEY,
+  baseURL: process.env.OPENROUTER_API_BASE || "https://openrouter.ai/api/v1",
+});
+
+// Define the model to use (can still be overridden by env var)
+const modelToUse = process.env.OPENROUTER_MODEL || "google/gemini-2.0-flash-exp:free";
 
 const app = new Hono();
 
@@ -41,13 +51,15 @@ app.post("/complete", async (c) => {
       console.log("❌ No screenshot received with request");
     }
 
-    // Pass validated data to OpenRouter
+    // Pass validated data, client instance, and model name
     const completion = await getOpenRouterChatCompletion(
-      body.text,
-      body.url,
-      body.screenshot,
-      body.userCountry,
-      body.userCity,
+      openai, 
+      modelToUse, // Pass the model name
+      body.text, 
+      body.url, 
+      body.screenshot, 
+      body.userCountry, 
+      body.userCity
     );
 
     console.log(`Response: "${completion.choices[0].message.content}"`);

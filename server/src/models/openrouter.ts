@@ -1,21 +1,15 @@
 import OpenAI from "openai";
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENROUTER_API_KEY,
-  baseURL: process.env.OPENROUTER_API_BASE || "https://openrouter.ai/api/v1",
-});
-
-const model =
-  process.env.OPENROUTER_MODEL || "google/gemini-2.0-flash-exp:free";
-
 export async function getOpenRouterChatCompletion(
+  openaiClient: OpenAI,
+  modelName: string,
   existingText: string,
   url: string,
   screenshot?: string,
   userCountry?: string,
   userCity?: string,
 ) {
-  console.log("Preparing OpenRouter request with model: ", model);
+  console.log("Preparing OpenRouter request with model: ", modelName);
 
   const userLocation =
     [userCity, userCountry].filter(Boolean).join(", ") || "Not specified";
@@ -73,12 +67,19 @@ export async function getOpenRouterChatCompletion(
   }
 
   try {
+    // Log the full prompt being sent
+    console.log("--- Sending Prompt to AI ---");
+    console.log("System Message:", JSON.stringify(systemMessage, null, 2));
+    console.log("-----------------------------");
+
     console.log("Sending request to OpenRouter...");
-    const result = await openai.chat.completions.create({
-      model: model,
+    const result = await openaiClient.chat.completions.create({
+      model: modelName,
       messages: [systemMessage, userMessage],
     });
+    console.log("OpenRouter full response:", JSON.stringify(result, null, 2)); // Log full response
     console.log("OpenRouter request successful");
+    console.log(`Response: "${result.choices[0].message.content}"`); 
     return result;
   } catch (error) {
     console.error("Error calling OpenRouter API:", error);
