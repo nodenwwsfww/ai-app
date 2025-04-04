@@ -19,15 +19,15 @@ const init = () => {
   const processed = new WeakSet<Element>()
 
   // Observer for element resizing
-  // const resizeObserver = new ResizeObserver(entries => {
-  //   for (const entry of entries) {
-  //     const element = entry.target as Element;
-  //     const ghostText = element.nextElementSibling as HTMLElement | null; // Type assertion
-  //     if (ghostText?.classList.contains('ghost-text')) {
-  //       copyStyles(element, ghostText); // Update styles on resize
-  //     }
-  //   }
-  // });
+  const resizeObserver = new ResizeObserver(entries => {
+    for (const entry of entries) {
+      const element = entry.target as Element;
+      const ghostText = element.nextElementSibling as HTMLElement | null; // Type assertion
+      if (ghostText?.classList.contains('ghost-text')) {
+        copyStyles(element, ghostText); // Update styles on resize
+      }
+    }
+  });
 
   // Setup function for each supported input element
   const setupInputElement = (element: SupportedElement) => {
@@ -44,7 +44,7 @@ const init = () => {
       element.parentNode.insertBefore(ghostText, element.nextSibling);
       copyStyles(element, ghostText); // Initial style copy
       processed.add(element);
-      // resizeObserver.observe(element); // Observe for size changes
+      resizeObserver.observe(element); // Observe for size changes
 
       // Debounced API call function
       const debouncedGetSuggestion = debounce(async (value: string) => {
@@ -120,7 +120,7 @@ const init = () => {
 
       // Attach event listeners
       element.addEventListener('input', handleInput);
-      element.addEventListener('scroll', handleScroll);
+      element.addEventListener('scroll', handleScroll, { passive: true });
       element.addEventListener('keydown', handleKeyDown);
       // For contenteditable, also listen to blur to catch changes
       if (element.getAttribute('contenteditable') === 'true') {
