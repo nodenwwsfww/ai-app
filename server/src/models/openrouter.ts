@@ -5,20 +5,28 @@ const openai = new OpenAI({
   baseURL: process.env.OPENROUTER_API_BASE || "https://openrouter.ai/api/v1",
 });
 
-const model = process.env.OPENROUTER_MODEL || "google/gemini-2.0-flash-exp:free";
+const model =
+  process.env.OPENROUTER_MODEL || "google/gemini-2.0-flash-exp:free";
 
 export async function getOpenRouterChatCompletion(
   existingText: string,
   url: string,
-  screenshot?: string
+  screenshot?: string,
+  userCountry?: string,
+  userCity?: string,
 ) {
   console.log("Preparing OpenRouter request with model: ", model);
-  
+
+  const userLocation =
+    [userCity, userCountry].filter(Boolean).join(", ") || "Not specified";
+  console.log(`Using user location: ${userLocation}`);
+
   const systemMessage = {
-    role: "system",
+    role: "system" as const,
     content: `
     You are an AI assistant focused *exclusively* on providing direct text continuations.
     Your goal is to predict the very next word(s) that would logically follow the user's \`Existing Text\`, considering the \`URL\` and potentially the \`screenshot\` for *local context* around the input field only.
+    Use the user's provided location (\`User Location: ${userLocation}\`) to make suggestions more relevant. For example, prioritize services, places, or context specific to this location if the user's input is ambiguous or relates to geography.
     Analyze the \`Existing Text\`: "${existingText}".
     Analyze the context: URL \`${url}\` and the provided screenshot (if any).
     Respond ONLY with the most likely *direct continuation* text that would immediately follow the \`Existing Text\`.
@@ -30,10 +38,10 @@ export async function getOpenRouterChatCompletion(
     - Keep the continuation very short (1-5 words).`,
   };
 
-  let userMessage: any;
-  
+  let userMessage: OpenAI.Chat.ChatCompletionMessageParam;
+
   // If screenshot is provided and valid, create multimodal message without getting description
-  if (screenshot && screenshot.startsWith('data:image')) {
+  if (screenshot && screenshot.startsWith("data:image")) {
     console.log("Creating multimodal message with screenshot (no description)");
     userMessage = {
       role: "user" as const,
@@ -41,26 +49,26 @@ export async function getOpenRouterChatCompletion(
         {
           type: "image_url",
           image_url: {
-            url: screenshot
-          }
+            url: screenshot,
+          },
         },
         {
           type: "text",
-          text: `Based *only* on the immediate visual context near the input field in the screenshot and the webpage URL, predict the text that should directly follow this existing input:\\n\\nExisting Text: "${existingText}"`
-        }
-      ]
+          text: `Based *only* on the immediate visual context near the input field in the screenshot, the webpage URL, and the user's location (${userLocation}), predict the text that should directly follow this existing input:\\n\\nExisting Text: "${existingText}"`,
+        },
+      ],
     };
   } else {
     // Use text-only message in all other cases
     console.log("Creating text-only message");
-    if (screenshot && !screenshot.startsWith('data:image')) {
+    if (screenshot && !screenshot.startsWith("data:image")) {
       console.warn("Warning: Screenshot is not a valid data URL format");
       console.log(`Screenshot starts with: ${screenshot.substring(0, 30)}...`);
     }
-    
+
     userMessage = {
       role: "user" as const,
-      content: `Based *only* on the webpage URL context, predict the text that should directly follow this existing input:\\n\\nExisting Text: "${existingText}"`
+      content: `Based *only* on the webpage URL context and the user's location (${userLocation}), predict the text that should directly follow this existing input:\\n\\nExisting Text: "${existingText}"`,
     };
   }
 

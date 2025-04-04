@@ -1,0 +1,27 @@
+{
+    "editor.codeActionsOnSave": {
+        "source.fixAll.eslint": "explicit",
+        "source.fixAll": "explicit"
+    },
+    "eslint.validate": [
+        "javascript",
+        "typescript",
+        "typescriptreact"
+    ],
+    "eslint.workingDirectories": [
+        "extension",
+        "server"
+    ],
+    "eslint.format.enable": true,
+    "eslint.lintTask.enable": true,
+    "eslint.alwaysShowStatus": true,
+    "editor.formatOnSave": true,
+    "editor.defaultFormatter": "dbaeumer.vscode-eslint",
+    "editor.fontLigatures": false,
+    "typescript.tsserver.watchOptions": {
+        "watchFile": "priorityPollingInterval"
+    },
+    "javascript.validate.enable": true,
+    "typescript.validate.enable": true,
+    "typescript.tsserver.experimental.enableProjectDiagnostics": true
+}

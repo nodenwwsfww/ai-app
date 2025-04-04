@@ -24,6 +24,7 @@ This extension is built with [Plasmo Framework](https://www.plasmo.com/), a powe
 
 1. Clone this repository
 2. Install dependencies:
+
    ```bash
    cd extension
    npm install
@@ -32,6 +33,7 @@ This extension is built with [Plasmo Framework](https://www.plasmo.com/), a powe
    ```
 
 3. Start the development server:
+
    ```bash
    npm run dev
    # or

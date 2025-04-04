@@ -1,5 +1,6 @@
-import html2canvas from "html2canvas";
-import type { SupportedElement } from "../types";
+import html2canvas from "html2canvas"
+
+import type { SupportedElement } from "../types"
 
 // Add styles for ghost text
 export const injectGhostTextStyles = () => {
@@ -46,122 +47,158 @@ export const injectGhostTextStyles = () => {
 }
 
 // Helper to check if element is supported
-export const isSupportedElement = (element: Element): element is SupportedElement => {
-  const tagName = element.tagName;
-  if (tagName === 'TEXTAREA') return true;
-  if (tagName === 'INPUT') {
-    const inputElement = element as HTMLInputElement;
-    const supportedTypes = ['text', 'email', 'search', 'url', 'tel', 'password'];
-    return supportedTypes.includes(inputElement.type.toLowerCase());
+export const isSupportedElement = (
+  element: Element
+): element is SupportedElement => {
+  const tagName = element.tagName
+  if (tagName === "TEXTAREA") return true
+  if (tagName === "INPUT") {
+    const inputElement = element as HTMLInputElement
+    const supportedTypes = ["text", "email", "search", "url", "tel", "password"]
+    return supportedTypes.includes(inputElement.type.toLowerCase())
   }
-  return element.getAttribute('contenteditable') === 'true';
+  return element.getAttribute("contenteditable") === "true"
 }
 
 // Helper to get element value
 export const getElementValue = (element: SupportedElement): string => {
-  if (element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement) {
-    return element.value;
+  if (
+    element instanceof HTMLInputElement ||
+    element instanceof HTMLTextAreaElement
+  ) {
+    return element.value
   }
-  if (element.getAttribute('contenteditable') === 'true') {
-    return element.textContent || '';
+  if (element.getAttribute("contenteditable") === "true") {
+    return element.textContent || ""
   }
-  return '';
+  return ""
 }
 
 // Helper to set element value
-export const setElementValue = (element: SupportedElement, value: string): void => {
-  if (element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement) {
-    element.value = value;
-  } else if (element.getAttribute('contenteditable') === 'true') {
-    element.textContent = value;
+export const setElementValue = (
+  element: SupportedElement,
+  value: string
+): void => {
+  if (
+    element instanceof HTMLInputElement ||
+    element instanceof HTMLTextAreaElement
+  ) {
+    element.value = value
+  } else if (element.getAttribute("contenteditable") === "true") {
+    element.textContent = value
   }
 }
 
 // Copy styles from source to target ghost element
 export const copyStyles = (source: Element, target: HTMLElement) => {
-    const computedStyle = window.getComputedStyle(source);
-    const parent = source.parentNode as HTMLElement;
+  const computedStyle = window.getComputedStyle(source)
+  const parent = source.parentNode as HTMLElement
 
-    // Ensure parent is positioned relatively for absolute positioning of ghost text
-    if (parent && window.getComputedStyle(parent).position === 'static') {
-      parent.style.position = 'relative';
-    }
+  // Ensure parent is positioned relatively for absolute positioning of ghost text
+  if (parent && window.getComputedStyle(parent).position === "static") {
+    parent.style.position = "relative"
+  }
 
-    // Use string literal keys compatible with CSSStyleDeclaration and element.style
-    const stylesToCopy = [
-      'font-size', 'font-family', 'font-weight', 'letter-spacing',
-      'text-align', 'text-indent', 'text-transform',
-      'padding-top', 'padding-bottom', 'padding-left', 'padding-right',
-      'border-top-width', 'border-bottom-width', 'border-left-width', 'border-right-width',
-      'box-sizing', 'line-height',
-      'margin-top', 'margin-bottom', 'margin-left', 'margin-right', // Keep margins for positioning relative to parent
-      'direction', 'writing-mode', 'vertical-align'
-    ];
+  // Use string literal keys compatible with CSSStyleDeclaration and element.style
+  const stylesToCopy = [
+    "font-size",
+    "font-family",
+    "font-weight",
+    "letter-spacing",
+    "text-align",
+    "text-indent",
+    "text-transform",
+    "padding-top",
+    "padding-bottom",
+    "padding-left",
+    "padding-right",
+    "border-top-width",
+    "border-bottom-width",
+    "border-left-width",
+    "border-right-width",
+    "box-sizing",
+    "line-height",
+    "margin-top",
+    "margin-bottom",
+    "margin-left",
+    "margin-right", // Keep margins for positioning relative to parent
+    "direction",
+    "writing-mode",
+    "vertical-align"
+  ]
 
-    stylesToCopy.forEach(styleName => {
-      // Read using getPropertyValue (safer for computed styles)
-      const value = computedStyle.getPropertyValue(styleName);
-      // Assign using setProperty which handles kebab-case.
-      target.style.setProperty(styleName, value);
-    });
+  stylesToCopy.forEach((styleName) => {
+    // Read using getPropertyValue (safer for computed styles)
+    const value = computedStyle.getPropertyValue(styleName)
+    // Assign using setProperty which handles kebab-case.
+    target.style.setProperty(styleName, value)
+  })
 
-    // Set dimensions explicitly
-    target.style.width = `${source.clientWidth}px`;
-    target.style.height = `${source.clientHeight}px`;
+  // Set dimensions explicitly
+  target.style.width = `${source.clientWidth}px`
+  target.style.height = `${source.clientHeight}px`
 
-    // Match scroll position
-    if (source instanceof HTMLElement) { // Check if source is an HTMLElement to access scroll properties
-        target.scrollTop = source.scrollTop;
-        target.scrollLeft = source.scrollLeft;
-    }
-  };
+  // Match scroll position
+  if (source instanceof HTMLElement) {
+    // Check if source is an HTMLElement to access scroll properties
+    target.scrollTop = source.scrollTop
+    target.scrollLeft = source.scrollLeft
+  }
+}
 
 // Debounce function
-export const debounce = <T extends (...args: any[]) => void>(func: T, wait: number): T => {
-  let timeout: NodeJS.Timeout | null = null;
+export const debounce = <T extends (...args: any[]) => void>(
+  func: T,
+  wait: number
+): T => {
+  let timeout: NodeJS.Timeout | null = null
   return ((...args: Parameters<T>) => {
-    if (timeout) clearTimeout(timeout);
+    if (timeout) clearTimeout(timeout)
     timeout = setTimeout(() => {
-      func(...args);
-      timeout = null;
-    }, wait);
-  }) as T;
-};
+      func(...args)
+      timeout = null
+    }, wait)
+  }) as T
+}
 
 // Throttle function
-export const throttle = <T extends (...args: any[]) => void>(func: T, limit: number): T => {
-  let inThrottle: boolean;
+export const throttle = <T extends (...args: any[]) => void>(
+  func: T,
+  limit: number
+): T => {
+  let inThrottle: boolean
   return ((...args: Parameters<T>) => {
     if (!inThrottle) {
-      inThrottle = true;
-      setTimeout(() => inThrottle = false, limit);
-      func(...args);
+      inThrottle = true
+      setTimeout(() => (inThrottle = false), limit)
+      func(...args)
     }
-  }) as T;
-};
+  }) as T
+}
 
 // Function to capture screenshot once
 export const captureScreenshotOnce = async (chrome: typeof window.chrome) => {
   try {
-    console.log('captureScreenshotOnce');
-    const { hasScreenshot } = await chrome.runtime.sendMessage({ type: 'HAS_SCREENSHOT' });
-    if (hasScreenshot) return;
-    console.log('doesnt have screensho on URL', window.location.href);
+    console.log("captureScreenshotOnce")
+    const { hasScreenshot } = await chrome.runtime.sendMessage({
+      type: "HAS_SCREENSHOT"
+    })
+    if (hasScreenshot) return
+    console.log("doesnt have screensho on URL", window.location.href)
 
     const canvas = await html2canvas(document.body, {
       logging: false,
       allowTaint: true,
       useCORS: true,
       scale: window.devicePixelRatio
-    });
-    const screenshotData = canvas.toDataURL("image/png", 1.0);
+    })
+    const screenshotData = canvas.toDataURL("image/png", 1.0)
 
     await chrome.runtime.sendMessage({
-      type: 'STORE_SCREENSHOT',
+      type: "STORE_SCREENSHOT",
       screenshot: screenshotData
-    });
+    })
   } catch (error) {
-    console.error("Screenshot capture error:", error); // Use console.error for errors
+    console.error("Screenshot capture error:", error) // Use console.error for errors
   }
-};
-
+}

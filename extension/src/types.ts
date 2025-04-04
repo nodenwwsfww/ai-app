@@ -1,9 +1,9 @@
 // Define types for input elements that we'll support
-export type SupportedElement = HTMLInputElement | HTMLTextAreaElement | Element;
+export type SupportedElement = HTMLInputElement | HTMLTextAreaElement | Element
 
 // Updated request type to include screenshot
 export interface CompleteRequest {
-  text: string;
-  url: string;
-  screenshot?: string;
+  text: string
+  url: string
+  screenshot?: string
 }
