@@ -59,11 +59,10 @@ export function buildUserMessage(
   };
 
   // Ensure userPromptTemplate exists (should always exist with proper setup)
-  const templates = modelConfig.userPromptTemplate || {
-    textOnly: `Based on the URL (${url}) and user location (${userLocation}), suggest text continuation for: "${existingText}"`,
-    withScreenshot: `Based on the URL (${url}) and user location (${userLocation}), suggest text continuation for: "${existingText}"`,
-    withBothScreenshots: `Based on the URL (${url}) and user location (${userLocation}), suggest text continuation for: "${existingText}"`,
-  };
+  const templates = modelConfig.userPromptTemplate;
+  if (!templates) {
+    throw new Error("User prompt template is not defined");
+  }
 
   // Determine message type and build appropriate content
   const isMultimodal = modelConfig.capabilities.multimodal;

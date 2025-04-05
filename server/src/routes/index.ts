@@ -63,7 +63,7 @@ app.post("/complete", async (c) => {
 
     // Log request details
     console.log(`Request from URL: ${body.url}`);
-    console.log(`Text context: ${body.text}`);
+    console.log(`Text context: '${body.text}'`);
     console.log(`User Country: ${body.userCountry || "Not provided"}`);
     console.log(`User City: ${body.userCity || "Not provided"}`);
 
