@@ -5,7 +5,7 @@ import { logger } from "hono/logger";
 import routes from "./routes";
 
 const app = new Hono();
-const port = Number(process.env.PORT) || 3000;
+const port = Number(process.env.PORT) || 8080;
 
 // Middleware
 app.use("*", cors());
