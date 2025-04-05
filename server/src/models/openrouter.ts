@@ -88,9 +88,9 @@ export async function getOpenRouterChatCompletion(
 
   try {
     // Log the prompt being sent
-    console.log("--- Sending Prompt to AI ---");
-    console.log(`System Message: ${JSON.stringify(messages[0], null, 2)}`);
-    console.log("-----------------------------");
+    // console.log("--- Sending Prompt to AI ---");
+    // console.log(`System Message: ${JSON.stringify(messages[0], null, 2)}`);
+    // console.log("-----------------------------");
 
     // Create request parameters
     const requestParams = createRequestParams(modelConfig, messages);
@@ -117,7 +117,7 @@ export async function getOpenRouterChatCompletion(
       ) {
         console.log(`Response: "${result.choices[0].message.content}"`);
       } else {
-        console.log("Response received but format is unexpected");
+        console.log("Response received but format is unexpected: ", result);
       }
     } catch (err) {
       console.log("Could not access response content details");

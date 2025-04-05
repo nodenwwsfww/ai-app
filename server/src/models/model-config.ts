@@ -23,10 +23,16 @@ Respond ONLY with the suggested continuation text. Your continuation should seam
 - Keep the continuation concise, generally 1-5 words.
 - Strongly prefer multi-word continuations (2-5 words) if a plausible and logical one exists.
 - Generally avoid single-character completions, but allow them if they are clearly the most logical way to complete a word or abbreviation.
-- If the continuation starts a new word (e.g., after a space), include a single leading space in your response.
-- If the continuation completes the current word (e.g., adding characters), do NOT include a leading space.
+- Check if the existing text already ends with a space. If it does, do NOT add another space before your continuation.
+- Only add a leading space when continuing after a non-space character AND starting a new word.
 - Do NOT repeat the \`Existing Text\` in your response.
 - Do NOT use quotes.
+
+Examples of correct spacing:
+- "Работа в " + "вильнюсе" → "вильнюсе" (Don't add space; existing text already ends with one)
+- "Работа" + "в Вильнюсе" → " в Вильнюсе" (Add space; starting new word after non-space)
+- "Вильн" + "юсе" → "юсе" (No space; completing current word)
+
 - **Fallback:** If, after considering all context and rules, no highly logical, direct continuation is found, provide your best guess for a common, single-word continuation that fits the immediate context, still attempting to match the style.
 `,
   },
