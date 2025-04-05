@@ -6,8 +6,10 @@ export async function getOpenRouterChatCompletion(
   existingText: string,
   url: string,
   screenshot?: string,
+  previousScreenshot?: string,
+  previousTabUrl?: string,
   userCountry?: string,
-  userCity?: string,
+  userCity?: string
 ) {
   console.log("Preparing OpenRouter request with model: ", modelName);
 
@@ -15,14 +17,34 @@ export async function getOpenRouterChatCompletion(
     [userCity, userCountry].filter(Boolean).join(", ") || "Not specified";
   console.log(`Using user location: ${userLocation}`);
 
+  // Log previous tab info if available
+  if (previousTabUrl) {
+    console.log(`Previous tab URL: ${previousTabUrl}`);
+  }
+
+  const hasBothScreenshots =
+    screenshot &&
+    previousScreenshot &&
+    screenshot.startsWith("data:image") &&
+    previousScreenshot.startsWith("data:image");
+
+  const hasOnlyCurrentScreenshot =
+    screenshot &&
+    screenshot.startsWith("data:image") &&
+    (!previousScreenshot || !previousScreenshot.startsWith("data:image"));
+
   const systemMessage = {
     role: "system" as const,
     content: `
     You are an AI assistant highly focused on providing direct and relevant text continuations.
-    Your primary goal is to predict the most likely word(s) that would *logically* and *directly* follow the user's \`Existing Text\`, considering the \`URL\` and potentially the \`screenshot\` for *local context* around the input field only.
+    Your primary goal is to predict the most likely word(s) that would *logically* and *directly* follow the user's \`Existing Text\`, considering the \`URL\`, the screenshot for *local context* around the input field, and potentially a previous tab's context.
     Use the user's provided location (\`User Location: ${userLocation}\`) to make suggestions more relevant. For example, prioritize services, places, or context specific to this location if the user's input is ambiguous or relates to geography.
+    
     Analyze the \`Existing Text\`: "${existingText}". Consider its content, style, and language register (e.g., formal/informal, technical/casual).
-    Analyze the context: URL \`${url}\` and the provided screenshot (if any).
+    
+    Analyze the primary context: URL \`${url}\` and the provided screenshot (if any).
+    ${previousTabUrl ? `Also consider the previous tab the user was on: \`${previousTabUrl}\`. If there appears to be a logical connection between the current task and previous activity, use this as additional context.` : ""}
+    
     Respond ONLY with the suggested continuation text. Your continuation should seamlessly match the language style and vocabulary of the existing text.
     - Your response MUST logically follow the \`Existing Text\`. Do NOT suggest unrelated topics or new search queries.
     - Keep the continuation concise, generally 1-5 words.
@@ -37,9 +59,36 @@ export async function getOpenRouterChatCompletion(
 
   let userMessage: OpenAI.Chat.ChatCompletionMessageParam;
 
-  // If screenshot is provided and valid, create multimodal message without getting description
-  if (screenshot && screenshot.startsWith("data:image")) {
-    console.log("Creating multimodal message with screenshot (no description)");
+  // Handle different screenshot scenarios
+  if (hasBothScreenshots) {
+    // Both screenshots available - use multimodal with both
+    console.log("Creating multimodal message with both screenshots");
+    const contentParts = [
+      {
+        type: "image_url",
+        image_url: {
+          url: screenshot,
+        },
+      },
+      {
+        type: "image_url",
+        image_url: {
+          url: previousScreenshot,
+        },
+      },
+      {
+        type: "text",
+        text: `Based on the immediate visual context near the input field in the screenshot, the webpage URL (${url}), ${previousTabUrl ? `the previous tab the user was on (${previousTabUrl}),` : ""} and the user's location (${userLocation}), predict the text that should directly follow this existing input:\\n\\nExisting Text: "${existingText}"`,
+      },
+    ];
+
+    userMessage = {
+      role: "user" as const,
+      content: contentParts,
+    };
+  } else if (hasOnlyCurrentScreenshot) {
+    // Only current screenshot available
+    console.log("Creating multimodal message with current screenshot only");
     userMessage = {
       role: "user" as const,
       content: [
@@ -51,21 +100,28 @@ export async function getOpenRouterChatCompletion(
         },
         {
           type: "text",
-          text: `Based *only* on the immediate visual context near the input field in the screenshot, the webpage URL, and the user's location (${userLocation}), predict the text that should directly follow this existing input:\\n\\nExisting Text: "${existingText}"`,
+          text: `Based on the immediate visual context near the input field in the screenshot, the webpage URL (${url}), ${previousTabUrl ? `the previous tab the user was on (${previousTabUrl}),` : ""} and the user's location (${userLocation}), predict the text that should directly follow this existing input:\\n\\nExisting Text: "${existingText}"`,
         },
       ],
     };
   } else {
-    // Use text-only message in all other cases
+    // Text-only message
     console.log("Creating text-only message");
+
     if (screenshot && !screenshot.startsWith("data:image")) {
-      console.warn("Warning: Screenshot is not a valid data URL format");
-      console.log(`Screenshot starts with: ${screenshot.substring(0, 30)}...`);
+      console.warn(
+        "Warning: Current screenshot is not a valid data URL format"
+      );
+    }
+    if (previousScreenshot && !previousScreenshot.startsWith("data:image")) {
+      console.warn(
+        "Warning: Previous screenshot is not a valid data URL format"
+      );
     }
 
     userMessage = {
       role: "user" as const,
-      content: `Based *only* on the webpage URL context and the user's location (${userLocation}), predict the text that should directly follow this existing input:\\n\\nExisting Text: "${existingText}"`,
+      content: `Based on the webpage URL context (${url}), ${previousTabUrl ? `the previous tab the user was on (${previousTabUrl}),` : ""} and the user's location (${userLocation}), predict the text that should directly follow this existing input:\\n\\nExisting Text: "${existingText}"`,
     };
   }
 
@@ -82,7 +138,7 @@ export async function getOpenRouterChatCompletion(
     });
     console.log("OpenRouter full response:", JSON.stringify(result, null, 2)); // Log full response
     console.log("OpenRouter request successful");
-    console.log(`Response: "${result.choices[0].message.content}"`); 
+    console.log(`Response: "${result.choices[0].message.content}"`);
     return result;
   } catch (error) {
     console.error("Error calling OpenRouter API:", error);

@@ -58,6 +58,8 @@ app.post("/complete", async (c) => {
       body.text, 
       body.url, 
       body.screenshot, 
+      body.previousScreenshot, 
+      body.previousTabUrl,
       body.userCountry, 
       body.userCity
     );

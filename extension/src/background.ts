@@ -1,9 +1,13 @@
+import { STORAGE_KEYS } from "~constants"
+
 interface TabScreenshot {
   screenshot: string
   timestamp: number
+  url: string
 }
 
 const tabScreenshots = new Map<number, TabScreenshot>()
+let lastActiveTabId: number | null = null
 
 // Listen for when the extension is installed
 chrome.runtime.onInstalled.addListener((details) => {
@@ -15,6 +19,29 @@ chrome.runtime.onInstalled.addListener((details) => {
   }
 })
 
+// Track tab switching to save previous tab's screenshot
+chrome.tabs.onActivated.addListener(async (activeInfo) => {
+  const { tabId } = activeInfo
+
+  // If we have a previous tab and its screenshot, save it to local storage
+  if (lastActiveTabId && tabScreenshots.has(lastActiveTabId)) {
+    const prevScreenshot = tabScreenshots.get(lastActiveTabId)
+    if (prevScreenshot) {
+      try {
+        await chrome.storage.local.set({
+          [STORAGE_KEYS.PREVIOUS_SCREENSHOT]: prevScreenshot.screenshot,
+          [STORAGE_KEYS.PREVIOUS_TAB_URL]: prevScreenshot.url
+        })
+        console.log("Saved previous tab screenshot to local storage")
+      } catch (error) {
+        console.error("Error saving previous tab screenshot:", error)
+      }
+    }
+  }
+
+  lastActiveTabId = tabId
+})
+
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (!sender.tab?.id) return
 
@@ -22,7 +49,8 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     case "STORE_SCREENSHOT":
       tabScreenshots.set(sender.tab.id, {
         screenshot: request.screenshot,
-        timestamp: Date.now()
+        timestamp: Date.now(),
+        url: sender.tab.url || ""
       })
       sendResponse({ success: true })
       break
@@ -32,8 +60,28 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       sendResponse({ screenshot: data?.screenshot })
       break
 
+    case "GET_BOTH_SCREENSHOTS":
+      // Retrieve current tab screenshot from memory
+      const currentData = tabScreenshots.get(sender.tab.id)
+      // Get previous screenshot data from storage
+      chrome.storage.local.get(
+        [STORAGE_KEYS.PREVIOUS_SCREENSHOT, STORAGE_KEYS.PREVIOUS_TAB_URL],
+        (result) => {
+          sendResponse({
+            currentScreenshot: currentData?.screenshot || null,
+            previousScreenshot:
+              result[STORAGE_KEYS.PREVIOUS_SCREENSHOT] || null,
+            previousTabUrl: result[STORAGE_KEYS.PREVIOUS_TAB_URL] || null
+          })
+        }
+      )
+      return true // Keep the message channel open for the async response
+
     case "HAS_SCREENSHOT":
-      sendResponse({ hasScreenshot: tabScreenshots.has(sender.tab.id) })
+      sendResponse({
+        hasCurrentScreenshot: tabScreenshots.has(sender.tab.id),
+        hasPreviousScreenshot: true // We'll check in storage when needed
+      })
       break
   }
 })
@@ -41,4 +89,9 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 // Clean up when tab is closed
 chrome.tabs.onRemoved.addListener((tabId) => {
   tabScreenshots.delete(tabId)
+
+  // If we're closing the last active tab, clear the reference
+  if (lastActiveTabId === tabId) {
+    lastActiveTabId = null
+  }
 })
