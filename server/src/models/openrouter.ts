@@ -117,7 +117,7 @@ export async function getOpenRouterChatCompletion(
       ) {
         console.log(`Response: "${result.choices[0].message.content}"`);
       } else {
-        console.log("Response received but format is unexpected: ", result);
+        console.log("Response received but format is unexpected");
       }
     } catch (err) {
       console.log("Could not access response content details");
