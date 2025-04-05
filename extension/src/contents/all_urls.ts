@@ -1,8 +1,7 @@
 import type { PlasmoCSConfig } from "plasmo"
 
-import { IGNORE_PATTERNS, STORAGE_KEYS } from "~constants"
+import { API, IGNORE_PATTERNS } from "~constants"
 import {
-  captureScreenshotOnce,
   copyStyles,
   debounce,
   getElementValue,
@@ -11,7 +10,9 @@ import {
   setElementValue,
   throttle
 } from "~contents-helpers/web"
-import type { CompleteRequest, SupportedElement } from "~types"
+import type { SupportedElement } from "~types"
+import { getSuggestion } from "~utils/api"
+import { clearSuggestion, createGhostText, updateGhostText } from "~utils/ui"
 
 export const config: PlasmoCSConfig = {
   matches: ["<all_urls>"],
@@ -43,98 +44,29 @@ const init = () => {
   const setupInputElement = (element: SupportedElement) => {
     if (processed.has(element)) return // Already processed
 
-    const ghostText = document.createElement("div")
-    ghostText.classList.add("ghost-text")
-    // Make it non-interactive for screen readers
-    ghostText.setAttribute("aria-hidden", "true")
+    // Create ghost text element using shared UI component
+    const ghostText = createGhostText(element)
 
     if (element.parentNode) {
-      // Insert ghost text after the element
-      element.parentNode.insertBefore(ghostText, element.nextSibling)
-      copyStyles(element, ghostText) // Initial style copy
       processed.add(element)
       resizeObserver.observe(element) // Observe for size changes
 
       // Debounced API call function
       const debouncedGetSuggestion = debounce(async (value: string) => {
         if (value.length === 0) {
-          ghostText.textContent = ""
+          clearSuggestion(ghostText)
           return
         }
-        try {
-          // Fetch personalization settings from storage
-          let userSettings = { userCountry: undefined, userCity: undefined }
-          if (chrome.storage?.local) {
-            userSettings = await new Promise((resolve) => {
-              chrome.storage.local.get(
-                [STORAGE_KEYS.USER_COUNTRY, STORAGE_KEYS.USER_CITY],
-                (result) => {
-                  resolve({
-                    userCountry: result[STORAGE_KEYS.USER_COUNTRY] || undefined,
-                    userCity: result[STORAGE_KEYS.USER_CITY] || undefined
-                  })
-                }
-              )
-            })
-          }
 
-          // Get both current and previous screenshots
-          const { currentScreenshot, previousScreenshot, previousTabUrl } =
-            await chrome.runtime.sendMessage({
-              type: "GET_BOTH_SCREENSHOTS"
-            })
+        // Get suggestion using shared API
+        const suggestion = await getSuggestion(value)
 
-          const requestBody: CompleteRequest = {
-            text: value,
-            url: window.location.href,
-            ...(userSettings.userCountry && {
-              userCountry: userSettings.userCountry
-            }),
-            ...(userSettings.userCity && { userCity: userSettings.userCity })
-          }
+        // Update ghost text with current value and suggestion
+        updateGhostText(ghostText, value, suggestion)
 
-          // Add current screenshot if available
-          if (currentScreenshot) {
-            requestBody.screenshot = currentScreenshot
-          }
-
-          // Add previous screenshot and URL if available
-          if (previousScreenshot) {
-            requestBody.previousScreenshot = previousScreenshot
-            if (previousTabUrl) {
-              requestBody.previousTabUrl = previousTabUrl
-            }
-          }
-
-          const response = await fetch(process.env.PLASMO_PUBLIC_API_URL, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(requestBody)
-          })
-          if (!response.ok) throw new Error(`API error: ${response.statusText}`)
-          const { text: suggestion } = await response.json()
-
-          // Check for model refusal or empty suggestion
-          const noSuggestion =
-            !suggestion ||
-            suggestion.length === 0 ||
-            suggestion === "[No plausible continuation]"
-
-          // Only show suggestion if it adds something and is not a refusal
-          if (!noSuggestion) {
-            // Ensure suggestion doesn't just repeat the value (adjust logic if needed)
-            // Current logic relies on server prompt to not repeat.
-            // We add the suggestion (server should handle leading space based on context)
-            ghostText.textContent = value + suggestion
-          } else {
-            ghostText.textContent = value // Show current value if no valid suggestion
-          }
-          copyStyles(element, ghostText) // Update styles after getting suggestion
-        } catch (error) {
-          console.error("API request error:", error)
-          ghostText.textContent = value // Show current value on error
-        }
-      }, 500) // 500ms debounce
+        // Copy styles to ensure proper display
+        copyStyles(element, ghostText)
+      }, API.DEBOUNCE_MS) // Use constant for debounce time
 
       // Event handler for input/changes
       const handleInput = async () => {
@@ -143,17 +75,16 @@ const init = () => {
         copyStyles(element, ghostText) // Update styles on input
 
         if (value.length > 0) {
-          await captureScreenshotOnce(chrome) // Capture screenshot on first input
           debouncedGetSuggestion(value) // Trigger suggestion fetching
         } else {
-          ghostText.textContent = "" // Clear ghost text if input is empty
+          clearSuggestion(ghostText) // Clear ghost text if input is empty
         }
       }
 
       // Throttled event handler for scroll events (Improved)
       const handleScroll = throttle(() => {
         copyStyles(element, ghostText) // Update styles/scroll on scroll (throttled)
-      }, 100) // Throttle to run at most every 100ms
+      }, API.THROTTLE_MS) // Use constant for throttle time
 
       // Event handler for keydown events (Tab completion, Enter clearing)
       const handleKeyDown = (e: KeyboardEvent) => {
@@ -170,13 +101,13 @@ const init = () => {
           setElementValue(element, currentGhostText)
           // Trigger input event for frameworks/listeners
           element.dispatchEvent(new Event("input", { bubbles: true }))
-          ghostText.textContent = "" // Clear ghost text after completion
+          clearSuggestion(ghostText) // Clear ghost text after completion
         } else if (
           e.key === "Enter" &&
           !(element.tagName === "TEXTAREA" && !e.ctrlKey && !e.metaKey)
         ) {
           // Clear ghost text on Enter (except for multiline textareas without Ctrl/Meta)
-          ghostText.textContent = ""
+          clearSuggestion(ghostText)
         }
         // Update styles after keydown potentially changes content/scroll
         setTimeout(() => copyStyles(element, ghostText), 0)
@@ -193,8 +124,8 @@ const init = () => {
       // Update styles on window resize (Improved)
       const throttledResizeHandler = throttle(
         () => copyStyles(element, ghostText),
-        100
-      ) // Throttle to run at most every 100ms
+        API.THROTTLE_MS
+      ) // Use constant for throttle time
       window.addEventListener("resize", throttledResizeHandler)
     } else {
       console.warn(
@@ -266,7 +197,7 @@ const init = () => {
         (target instanceof HTMLInputElement && target.type === "submit")
       ) {
         document.querySelectorAll(".ghost-text").forEach((ghost) => {
-          ghost.textContent = ""
+          clearSuggestion(ghost as HTMLElement)
         })
       }
     },
