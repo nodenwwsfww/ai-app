@@ -22,7 +22,8 @@ function IndexPopup() {
         [
           STORAGE_KEYS.TRIAL_END_TIME,
           STORAGE_KEYS.USER_COUNTRY,
-          STORAGE_KEYS.USER_CITY
+          STORAGE_KEYS.USER_CITY,
+          STORAGE_KEYS.SCREENSHOT_DATA
         ],
         (result) => {
           if (result[STORAGE_KEYS.TRIAL_END_TIME]) {
@@ -41,6 +42,9 @@ function IndexPopup() {
           }
           if (result[STORAGE_KEYS.USER_CITY]) {
             setUserCity(result[STORAGE_KEYS.USER_CITY])
+          }
+          if (result[STORAGE_KEYS.SCREENSHOT_DATA]) {
+            setScreenshotData(result[STORAGE_KEYS.SCREENSHOT_DATA])
           }
         }
       )
@@ -154,6 +158,26 @@ function IndexPopup() {
     ...buttonStyle,
     backgroundColor: "#5cb85c", // Green for save
     marginTop: "5px" // Add some space above save button
+  }
+
+  // Function to capture a screenshot of the current tab
+  const captureScreenshot = () => {
+    if (chrome.tabs && chrome.tabs.captureVisibleTab) {
+      chrome.tabs.captureVisibleTab(null, { format: "png" }, (dataUrl) => {
+        setScreenshotData(dataUrl)
+        if (chrome.storage?.local) {
+          chrome.storage.local.set({ [STORAGE_KEYS.SCREENSHOT_DATA]: dataUrl })
+        }
+      })
+    }
+  }
+  
+  // Clear the stored screenshot
+  const clearScreenshot = () => {
+    setScreenshotData("")
+    if (chrome.storage?.local) {
+      chrome.storage.local.remove(STORAGE_KEYS.SCREENSHOT_DATA)
+    }
   }
 
   return (
@@ -293,6 +317,37 @@ function IndexPopup() {
             {settingsMessage}
           </p>
         )}
+      </div>
+
+      <div
+        style={{
+          borderBottom: "1px solid #eee",
+          paddingBottom: "15px",
+          marginBottom: "5px"
+        }}>
+        <h3
+          style={{
+            margin: "0 0 10px 0",
+            fontSize: "15px",
+            color: "#555",
+            fontWeight: "600"
+          }}>
+          Screenshot
+        </h3>
+        <div style={{ display: "flex", gap: "10px" }}>
+          <button 
+            style={{ ...buttonStyle, flex: 1 }} 
+            onClick={captureScreenshot}>
+            Capture Screenshot
+          </button>
+          {screenshotData && (
+            <button 
+              style={{ ...buttonStyle, backgroundColor: "#f44336", flex: 1 }} 
+              onClick={clearScreenshot}>
+              Clear
+            </button>
+          )}
+        </div>
       </div>
 
       {screenshotData && (
