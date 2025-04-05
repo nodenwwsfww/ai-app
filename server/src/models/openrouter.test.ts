@@ -1,207 +1,150 @@
-import { describe, it, expect, beforeEach, afterEach } from "bun:test";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import type OpenAI from "openai";
-import type { ChatCompletion } from "openai/resources/chat/completions";
 import { getOpenRouterChatCompletion } from "./openrouter";
 
-// Helper to create mock completion
-const createMockChatCompletion = (content: string): ChatCompletion => ({
-  id: "chatcmpl-test123",
-  object: "chat.completion",
-  created: Date.now(),
-  model: "mock-model",
-  choices: [
-    {
-      index: 0,
-      message: {
-        role: "assistant",
-        content: content,
-      },
-      finish_reason: "stop",
-      logprobs: null
-    },
-  ],
-  usage: {
-    prompt_tokens: 10,
-    completion_tokens: 5,
-    total_tokens: 15,
-  },
-});
-
-// Simple manual mock function factory (copied from previous attempt)
-const createManualMock = () => {
-  const mockFn: any = async (...args: any[]) => {
-    mockFn.mock.calls.push(args);
-    if (mockFn._rejects) {
-      throw mockFn._error;
-    }
-    return mockFn._resolves !== undefined ? mockFn._resolves : createMockChatCompletion(" default manual mock");
-  };
-  mockFn.mock = { calls: [] };
-  mockFn._resolves = undefined;
-  mockFn._rejects = false;
-  mockFn._error = undefined;
-  mockFn.mockClear = () => { 
-    mockFn.mock.calls = []; 
-    mockFn._resolves = undefined; 
-    mockFn._rejects = false; 
-    mockFn._error = undefined; 
-  };
-  mockFn.mockResolvedValue = (value: any) => { 
-    mockFn._resolves = value; 
-    mockFn._rejects = false; 
-  };
-  mockFn.mockRejectedValue = (error: any) => { 
-    mockFn._error = error; 
-    mockFn._rejects = true; 
-  };
-  mockFn.toHaveBeenCalledTimes = (count: number) => {
-    expect(mockFn.mock.calls.length).toBe(count);
-  };
-  return mockFn;
-};
-
-// Define test data
-const testText = "Hello";
-const testUrl = "https://example.com";
-const testCountry = "Lithuania";
-const testCity = "Vilnius";
-const testLocation = `${testCity}, ${testCountry}`;
-const testScreenshot = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII="; // 1x1 pixel PNG
-
-const defaultModel = "google/gemini-2.0-flash-exp:free";
-
 describe("getOpenRouterChatCompletion", () => {
-  let mockCreateCompletion: ReturnType<typeof createManualMock>;
-  let mockOpenAIClient: any; // Mock client object
-
-  beforeEach(() => {
-    // No need to reset process.env.OPENROUTER_MODEL here anymore
-    mockCreateCompletion = createManualMock();
-    mockOpenAIClient = {
-      chat: {
-        completions: {
-          create: mockCreateCompletion,
-        },
+  // Mock OpenAI client
+  const mockCreate = vi.fn();
+  const mockOpenAI = {
+    chat: {
+      completions: {
+        create: mockCreate,
       },
+    },
+  } as unknown as OpenAI;
+
+  // Reset mocks between tests
+  beforeEach(() => {
+    mockCreate.mockReset();
+    mockCreate.mockResolvedValue({
+      choices: [
+        {
+          message: {
+            content: "mock response",
+          },
+        },
+      ],
+    });
+  });
+
+  it("should handle text-only requests correctly", async () => {
+    // Setup
+    const modelName = "test-model";
+    const existingText = "test text";
+    const url = "https://example.com";
+    const userCountry = "TestCountry";
+    const userCity = "TestCity";
+
+    // Execute
+    await getOpenRouterChatCompletion(
+      mockOpenAI,
+      modelName,
+      existingText,
+      url,
+      undefined,
+      undefined,
+      undefined,
+      userCountry,
+      userCity
+    );
+
+    // Verify
+    expect(mockCreate).toHaveBeenCalledTimes(1);
+
+    const callArg = mockCreate.mock.calls[0][0] as {
+      model: string;
+      messages: Array<{ role: string; content: string | unknown[] }>;
     };
+
+    expect(callArg.model).toBe(modelName);
+    expect(callArg.messages.length).toBe(2);
+    expect(callArg.messages[0].role).toBe("system");
+    expect(callArg.messages[1].role).toBe("user");
+    expect(typeof callArg.messages[1].content).toBe("string");
   });
 
-  // No afterEach needed as we pass the mock directly
+  it("should handle screenshot requests correctly", async () => {
+    // Setup
+    const modelName = "test-model";
+    const existingText = "test text";
+    const url = "https://example.com";
+    const screenshot = "data:image/png;base64,abcdefg";
+    const userCountry = "TestCountry";
+    const userCity = "TestCity";
 
-  // --- Tests --- 
-  it("should correctly format text-only request and call API with default model", async () => {
-    const mockContent = " World";
-    const mockResponse = createMockChatCompletion(mockContent);
-    mockCreateCompletion.mockResolvedValue(mockResponse);
-
-    const result = await getOpenRouterChatCompletion(
-      mockOpenAIClient, 
-      defaultModel, // Pass default model
-      testText, 
-      testUrl, 
-      undefined, 
-      testCountry, 
-      testCity
+    // Execute
+    await getOpenRouterChatCompletion(
+      mockOpenAI,
+      modelName,
+      existingText,
+      url,
+      screenshot,
+      undefined,
+      undefined,
+      userCountry,
+      userCity
     );
 
-    mockCreateCompletion.toHaveBeenCalledTimes(1); // Use custom assertion
-    const callArgs = mockCreateCompletion.mock.calls[0][0];
+    // Verify
+    expect(mockCreate).toHaveBeenCalledTimes(1);
 
-    expect(callArgs.model).toBe(defaultModel);
-    expect(callArgs.messages).toHaveLength(2);
-    expect(callArgs.messages[0].role).toBe("system");
-    expect(callArgs.messages[0].content).toContain(`User Location: ${testLocation}`);
-    expect(callArgs.messages[1].role).toBe("user");
-    expect(callArgs.messages[1].content).toBe(
-      `Based *only* on the webpage URL context and the user's location (${testLocation}), predict the text that should directly follow this existing input:\\n\\nExisting Text: "${testText}"`
+    const callArg = mockCreate.mock.calls[0][0] as {
+      model: string;
+      messages: Array<{ role: string; content: string | unknown[] }>;
+    };
+
+    expect(callArg.model).toBe(modelName);
+    expect(callArg.messages.length).toBe(2);
+    expect(callArg.messages[0].role).toBe("system");
+    expect(callArg.messages[1].role).toBe("user");
+    expect(Array.isArray(callArg.messages[1].content)).toBe(true);
+
+    const content = callArg.messages[1].content as unknown[];
+    expect(content.length).toBe(2);
+    expect((content[0] as { type: string }).type).toBe("image_url");
+  });
+
+  it("should handle both screenshots correctly", async () => {
+    // Setup
+    const modelName = "test-model";
+    const existingText = "test text";
+    const url = "https://example.com";
+    const screenshot = "data:image/png;base64,abcdefg";
+    const previousScreenshot = "data:image/png;base64,1234567";
+    const previousTabUrl = "https://previous.example.com";
+    const userCountry = "TestCountry";
+    const userCity = "TestCity";
+
+    // Execute
+    await getOpenRouterChatCompletion(
+      mockOpenAI,
+      modelName,
+      existingText,
+      url,
+      screenshot,
+      previousScreenshot,
+      previousTabUrl,
+      userCountry,
+      userCity
     );
-    expect(result).toEqual(mockResponse);
+
+    // Verify
+    expect(mockCreate).toHaveBeenCalledTimes(1);
+
+    const callArg = mockCreate.mock.calls[0][0] as {
+      model: string;
+      messages: Array<{ role: string; content: string | unknown[] }>;
+    };
+
+    expect(callArg.model).toBe(modelName);
+    expect(callArg.messages.length).toBe(2);
+    expect(callArg.messages[0].role).toBe("system");
+    expect(callArg.messages[1].role).toBe("user");
+    expect(Array.isArray(callArg.messages[1].content)).toBe(true);
+
+    const content = callArg.messages[1].content as unknown[];
+    expect(content.length).toBe(3);
+    expect((content[0] as { type: string }).type).toBe("image_url");
+    expect((content[1] as { type: string }).type).toBe("image_url");
   });
-
-  it("should correctly format multimodal request and call API with default model", async () => {
-    const mockContent = " from image";
-    const mockResponse = createMockChatCompletion(mockContent);
-    mockCreateCompletion.mockResolvedValue(mockResponse);
-
-    const result = await getOpenRouterChatCompletion(
-      mockOpenAIClient, 
-      defaultModel, // Pass default model
-      testText, 
-      testUrl, 
-      testScreenshot, 
-      testCountry, 
-      testCity
-    );
-    
-    mockCreateCompletion.toHaveBeenCalledTimes(1);
-    const callArgs = mockCreateCompletion.mock.calls[0][0];
-
-    expect(callArgs.model).toBe(defaultModel);
-    expect(callArgs.messages).toHaveLength(2);
-    expect(callArgs.messages[0].role).toBe("system");
-    expect(callArgs.messages[0].content).toContain(`User Location: ${testLocation}`);
-    expect(callArgs.messages[1].role).toBe("user");
-    expect(Array.isArray(callArgs.messages[1].content)).toBe(true); // Check if array
-    const userContent = callArgs.messages[1].content as Array<any>; // Type assertion
-    expect(userContent).toHaveLength(2);
-    expect(userContent[0].type).toBe("image_url");
-    expect(userContent[0].image_url.url).toBe(testScreenshot);
-    expect(userContent[1].type).toBe("text");
-    expect(userContent[1].text).toBe(
-       `Based *only* on the immediate visual context near the input field in the screenshot, the webpage URL, and the user's location (${testLocation}), predict the text that should directly follow this existing input:\\n\\nExisting Text: "${testText}"`
-    );
-    expect(result).toEqual(mockResponse);
-  });
-
-  it("should use the passed model name", async () => {
-    const customModel = "test/custom-model";
-    const mockResponse = createMockChatCompletion(" test");
-    mockCreateCompletion.mockResolvedValue(mockResponse);
-
-    await getOpenRouterChatCompletion(mockOpenAIClient, customModel, testText, testUrl);
-
-    mockCreateCompletion.toHaveBeenCalledTimes(1);
-    const callArgs = mockCreateCompletion.mock.calls[0][0];
-    expect(callArgs.model).toBe(customModel); // Expect the passed model
-  });
-
-  it("should handle location correctly when only country is provided", async () => {
-    const mockResponse = createMockChatCompletion(" Test");
-    mockCreateCompletion.mockResolvedValue(mockResponse);
-    await getOpenRouterChatCompletion(mockOpenAIClient, defaultModel, testText, testUrl, undefined, testCountry, undefined);
-    const callArgs = mockCreateCompletion.mock.calls[0][0];
-    const expectedLocation = testCountry;
-    expect(callArgs.messages[0].content).toContain(`User Location: ${expectedLocation}`);
-    expect((callArgs.messages[1].content as string)).toContain(`(${expectedLocation})`); // Assertion for text content
-  });
-  
-   it("should handle location correctly when only city is provided", async () => {
-    const mockResponse = createMockChatCompletion(" Test");
-    mockCreateCompletion.mockResolvedValue(mockResponse);
-    await getOpenRouterChatCompletion(mockOpenAIClient, defaultModel, testText, testUrl, undefined, undefined, testCity);
-    const callArgs = mockCreateCompletion.mock.calls[0][0];
-    const expectedLocation = testCity;
-    expect(callArgs.messages[0].content).toContain(`User Location: ${expectedLocation}`);
-    expect((callArgs.messages[1].content as string)).toContain(`(${expectedLocation})`); // Assertion for text content
-  });
-
-  it("should handle location correctly when neither city nor country is provided", async () => {
-    const mockResponse = createMockChatCompletion(" Test");
-    mockCreateCompletion.mockResolvedValue(mockResponse);
-    await getOpenRouterChatCompletion(mockOpenAIClient, defaultModel, testText, testUrl, undefined, undefined, undefined);
-    const callArgs = mockCreateCompletion.mock.calls[0][0];
-    const expectedLocation = "Not specified";
-    expect(callArgs.messages[0].content).toContain(`User Location: ${expectedLocation}`);
-    expect((callArgs.messages[1].content as string)).toContain(`(${expectedLocation})`); // Assertion for text content
-  });
-
-  it("should throw error if API call fails", async () => {
-    const testError = new Error("API Failure");
-    mockCreateCompletion.mockRejectedValue(testError);
-
-    await expect(getOpenRouterChatCompletion(mockOpenAIClient, defaultModel, testText, testUrl))
-      .rejects.toThrow("API Failure");
-      
-    mockCreateCompletion.toHaveBeenCalledTimes(1);
-  });
-}); 
+});

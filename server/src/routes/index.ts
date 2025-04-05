@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { z } from "zod";
-import OpenAI from 'openai';
+import OpenAI from "openai";
 import { getOpenRouterChatCompletion } from "../models/openrouter";
 import { AutocompleteRequestSchema } from "../schemas";
 
@@ -11,7 +11,8 @@ const openai = new OpenAI({
 });
 
 // Define the model to use (can still be overridden by env var)
-const modelToUse = process.env.OPENROUTER_MODEL || "google/gemini-2.0-flash-exp:free";
+const modelToUse =
+  process.env.OPENROUTER_MODEL || "google/gemini-2.0-flash-exp:free";
 
 const app = new Hono();
 
@@ -53,15 +54,15 @@ app.post("/complete", async (c) => {
 
     // Pass validated data, client instance, and model name
     const completion = await getOpenRouterChatCompletion(
-      openai, 
+      openai,
       modelToUse, // Pass the model name
-      body.text, 
-      body.url, 
-      body.screenshot, 
-      body.previousScreenshot, 
+      body.text,
+      body.url,
+      body.screenshot,
+      body.previousScreenshot,
       body.previousTabUrl,
-      body.userCountry, 
-      body.userCity
+      body.userCountry,
+      body.userCity,
     );
 
     console.log(`Response: "${completion.choices[0].message.content}"`);

@@ -145,11 +145,11 @@ export const copyStyles = (source: Element, target: HTMLElement) => {
 }
 
 // Debounce function
-export const debounce = <T extends (...args: any[]) => void>(
+export const debounce = <T extends (...args: unknown[]) => void>(
   func: T,
   wait: number
 ): T => {
-  let timeout: any = null
+  let timeout: NodeJS.Timeout | null = null
   return ((...args: Parameters<T>) => {
     if (timeout) clearTimeout(timeout)
     timeout = setTimeout(() => {
@@ -160,16 +160,18 @@ export const debounce = <T extends (...args: any[]) => void>(
 }
 
 // Throttle function
-export const throttle = <T extends (...args: any[]) => void>(
+export const throttle = <T extends (...args: unknown[]) => void>(
   func: T,
   limit: number
-): T => {
-  let inThrottle: boolean
-  return ((...args: Parameters<T>) => {
+): ((...args: Parameters<T>) => void) => {
+  let inThrottle = false
+  return function (this: unknown, ...args: Parameters<T>): void {
     if (!inThrottle) {
+      func.apply(this, args)
       inThrottle = true
-      setTimeout(() => (inThrottle = false), limit)
-      func(...args)
+      setTimeout(() => {
+        inThrottle = false
+      }, limit)
     }
-  }) as T
+  }
 }

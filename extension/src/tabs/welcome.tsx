@@ -48,9 +48,9 @@ function WelcomePage() {
         <h2 style={{ fontSize: "20px", marginTop: 0 }}>
           Thank you for installing our extension
         </h2>
-        <p>
-          This extension helps you enhance your browsing experience with
-          AI-powered features. Here's what you can do with it:
+        <p style={{ fontSize: 16, marginBottom: 20 }}>
+          AI Autocomplete helps you write faster by predicting text as you type.
+          It&apos;s designed to work on most websites and input fields.
         </p>
 
         <ul style={{ lineHeight: "1.6" }}>

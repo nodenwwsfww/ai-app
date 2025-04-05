@@ -9,7 +9,7 @@ export async function getOpenRouterChatCompletion(
   previousScreenshot?: string,
   previousTabUrl?: string,
   userCountry?: string,
-  userCity?: string
+  userCity?: string,
 ) {
   console.log("Preparing OpenRouter request with model: ", modelName);
 
@@ -63,21 +63,21 @@ export async function getOpenRouterChatCompletion(
   if (hasBothScreenshots) {
     // Both screenshots available - use multimodal with both
     console.log("Creating multimodal message with both screenshots");
-    const contentParts = [
+    const contentParts: OpenAI.Chat.ChatCompletionContentPart[] = [
       {
-        type: "image_url",
+        type: "image_url" as const,
         image_url: {
-          url: screenshot,
+          url: screenshot as string,
         },
       },
       {
-        type: "image_url",
+        type: "image_url" as const,
         image_url: {
-          url: previousScreenshot,
+          url: previousScreenshot as string,
         },
       },
       {
-        type: "text",
+        type: "text" as const,
         text: `Based on the immediate visual context near the input field in the screenshot, the webpage URL (${url}), ${previousTabUrl ? `the previous tab the user was on (${previousTabUrl}),` : ""} and the user's location (${userLocation}), predict the text that should directly follow this existing input:\\n\\nExisting Text: "${existingText}"`,
       },
     ];
@@ -93,13 +93,13 @@ export async function getOpenRouterChatCompletion(
       role: "user" as const,
       content: [
         {
-          type: "image_url",
+          type: "image_url" as const,
           image_url: {
-            url: screenshot,
+            url: screenshot as string,
           },
         },
         {
-          type: "text",
+          type: "text" as const,
           text: `Based on the immediate visual context near the input field in the screenshot, the webpage URL (${url}), ${previousTabUrl ? `the previous tab the user was on (${previousTabUrl}),` : ""} and the user's location (${userLocation}), predict the text that should directly follow this existing input:\\n\\nExisting Text: "${existingText}"`,
         },
       ],
@@ -110,12 +110,12 @@ export async function getOpenRouterChatCompletion(
 
     if (screenshot && !screenshot.startsWith("data:image")) {
       console.warn(
-        "Warning: Current screenshot is not a valid data URL format"
+        "Warning: Current screenshot is not a valid data URL format",
       );
     }
     if (previousScreenshot && !previousScreenshot.startsWith("data:image")) {
       console.warn(
-        "Warning: Previous screenshot is not a valid data URL format"
+        "Warning: Previous screenshot is not a valid data URL format",
       );
     }
 

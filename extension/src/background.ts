@@ -45,6 +45,9 @@ chrome.tabs.onActivated.addListener(async (activeInfo) => {
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (!sender.tab?.id) return
 
+  let data = null
+  let currentData = null
+
   switch (request.type) {
     case "STORE_SCREENSHOT":
       tabScreenshots.set(sender.tab.id, {
@@ -56,13 +59,13 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       break
 
     case "GET_SCREENSHOT":
-      const data = tabScreenshots.get(sender.tab.id)
+      data = tabScreenshots.get(sender.tab.id)
       sendResponse({ screenshot: data?.screenshot })
       break
 
     case "GET_BOTH_SCREENSHOTS":
       // Retrieve current tab screenshot from memory
-      const currentData = tabScreenshots.get(sender.tab.id)
+      currentData = tabScreenshots.get(sender.tab.id)
       // Get previous screenshot data from storage
       chrome.storage.local.get(
         [STORAGE_KEYS.PREVIOUS_SCREENSHOT, STORAGE_KEYS.PREVIOUS_TAB_URL],

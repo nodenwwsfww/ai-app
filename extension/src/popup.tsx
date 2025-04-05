@@ -171,7 +171,7 @@ function IndexPopup() {
       })
     }
   }
-  
+
   // Clear the stored screenshot
   const clearScreenshot = () => {
     setScreenshotData("")
@@ -335,14 +335,14 @@ function IndexPopup() {
           Screenshot
         </h3>
         <div style={{ display: "flex", gap: "10px" }}>
-          <button 
-            style={{ ...buttonStyle, flex: 1 }} 
+          <button
+            style={{ ...buttonStyle, flex: 1 }}
             onClick={captureScreenshot}>
             Capture Screenshot
           </button>
           {screenshotData && (
-            <button 
-              style={{ ...buttonStyle, backgroundColor: "#f44336", flex: 1 }} 
+            <button
+              style={{ ...buttonStyle, backgroundColor: "#f44336", flex: 1 }}
               onClick={clearScreenshot}>
               Clear
             </button>
