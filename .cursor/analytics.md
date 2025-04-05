@@ -1,8 +1,9 @@
 ---
-description: 
-globs: 
+description:
+globs:
 alwaysApply: true
 ---
+
 # Cursor Rules Usage Analytics
 
 This file tracks the number of times each Cursor rule has been accessed.
@@ -30,3 +31,4 @@ task-list.mdc: 0
 testing.mdc: 0
 ui-components.mdc: 0
 utilities.mdc: 0
+typescript-types-organization.mdc: 2

@@ -1,10 +1,6 @@
 import { STORAGE_KEYS } from "~constants"
 
-interface TabScreenshot {
-  screenshot: string
-  timestamp: number
-  url: string
-}
+import type { TabScreenshot } from "./types"
 
 const tabScreenshots = new Map<number, TabScreenshot>()
 let lastActiveTabId: number | null = null

@@ -1,9 +1,9 @@
 import { Hono } from "hono";
-import { z } from "zod";
 import OpenAI from "openai";
 import { getOpenRouterChatCompletion } from "../models/openrouter";
 import { AutocompleteRequestSchema } from "../schemas";
 import { getAvailableModels, getModelConfig } from "../models/model-config";
+import type { OpenAIResponse } from "../types";
 
 // Create OpenAI client
 const openai = new OpenAI({
@@ -21,7 +21,7 @@ const getDefaultModelId = (): string => {
  * @param result - OpenAI API response
  * @returns Text content from the response or empty string if not available
  */
-function extractResponseContent(result: any): string {
+function extractResponseContent(result: OpenAIResponse | unknown): string {
   try {
     if (
       result &&
