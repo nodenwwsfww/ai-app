@@ -9,7 +9,7 @@ export async function getOpenRouterChatCompletion(
   previousScreenshot?: string,
   previousTabUrl?: string,
   userCountry?: string,
-  userCity?: string,
+  userCity?: string
 ) {
   console.log("Preparing OpenRouter request with model: ", modelName);
 
@@ -110,12 +110,12 @@ export async function getOpenRouterChatCompletion(
 
     if (screenshot && !screenshot.startsWith("data:image")) {
       console.warn(
-        "Warning: Current screenshot is not a valid data URL format",
+        "Warning: Current screenshot is not a valid data URL format"
       );
     }
     if (previousScreenshot && !previousScreenshot.startsWith("data:image")) {
       console.warn(
-        "Warning: Previous screenshot is not a valid data URL format",
+        "Warning: Previous screenshot is not a valid data URL format"
       );
     }
 
